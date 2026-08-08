@@ -67,15 +67,72 @@ rm -f "${ips_tmp}"
 # --- Spamhaus DROP CIDRs (brain does prefix matching) -----------------------
 fetch "${DROP_URL}" "${FEED_DIR}/drop.txt"
 
-# --- Vulnerability bundle ----------------------------------------------------
-# NOTE: building vulns.tsv means parsing Ubuntu OVAL/USN (backport-correct) and
-# OSV for Composer/app deps. That parser is the remaining v1 brain task
-# (tracked in BACKLOG). The agent matcher (90-vulns.sh) already consumes this
-# format correctly — see tests/matchers.bats. Until the parser lands, drop a
-# curated vulns.tsv here manually to exercise the matcher.
-if [ ! -f "${FEED_DIR}/vulns.tsv" ]; then
-  printf '# package\tfixed_version\tcve\tpriority\n' > "${FEED_DIR}/vulns.tsv"
-  echo "fetch-feeds: wrote empty vulns.tsv header (OVAL/OSV parser pending)"
-fi
+# --- Vulnerability bundle (OSV) ---------------------------------------------
+# Build vulns.tsv (source-package, fixed_version, cve, priority) from OSV, but
+# ONLY for advisories that carry a real "fixed" version. Debian OSV lists many
+# introduced:0/no-fix ("minor / no-DSA") entries that would be pure false
+# positives; we drop those. The agent matcher (90-vulns.sh) then flags a package
+# only when the installed source version is < the fixed version (an actual
+# missing patch). OSV IOC data: CC-BY (see docs/STACK.md).
+build_vulns_osv() {
+  command -v dpkg-query >/dev/null 2>&1 || {
+    echo "fetch-feeds: dpkg-query missing; skipping vuln feed" >&2; return 0; }
+
+  local eco=""
+  # shellcheck disable=SC1091
+  [ -r /etc/os-release ] && . /etc/os-release
+  case "${ID:-}" in
+    debian) eco="Debian:${VERSION_ID:-}" ;;
+    ubuntu) eco="Ubuntu:${VERSION_ID:-}" ;;
+    *) echo "fetch-feeds: OSV vuln feed supports Debian/Ubuntu only (got '${ID:-?}')" >&2; return 0 ;;
+  esac
+  [ -n "${VERSION_ID:-}" ] || { echo "fetch-feeds: no VERSION_ID; skip vuln feed" >&2; return 0; }
+
+  local pkgs qbatch resp out affected
+  pkgs="$(mktemp)"; qbatch="$(mktemp)"; resp="$(mktemp)"; out="$(mktemp)"
+
+  # Unique installed source packages + source versions.
+  dpkg-query -W -f='${source:Package}\t${source:Version}\n' 2>/dev/null \
+    | awk -F'\t' 'NF==2 && $1!="" && $2!="" {print}' | sort -u > "${pkgs}"
+
+  jq -Rn --arg eco "${eco}" \
+    '{queries: [inputs | split("\t") | {package: {ecosystem: $eco, name: .[0]}, version: .[1]}]}' \
+    < "${pkgs}" > "${qbatch}"
+
+  if ! curl -fsS --max-time 120 -X POST -H 'Content-Type: application/json' \
+        -d @"${qbatch}" 'https://api.osv.dev/v1/querybatch' -o "${resp}" 2>/dev/null; then
+    echo "fetch-feeds: WARNING OSV querybatch failed; kept previous vulns.tsv" >&2
+    rm -f "${pkgs}" "${qbatch}" "${resp}" "${out}"; return 0
+  fi
+
+  # Which source packages have at least one advisory (results[] align to queries).
+  affected="$(paste <(cut -f1 "${pkgs}") <(jq -c '.results[]?' "${resp}") \
+    | awk -F'\t' '$2 ~ /"vulns"/ {print $1}' | sort -u)"
+
+  # For each affected package, pull full advisories and keep only fixed versions.
+  while IFS= read -r name; do
+    [ -n "${name}" ] || continue
+    local ver q1 detail
+    ver="$(awk -F'\t' -v n="${name}" '$1==n{print $2; exit}' "${pkgs}")"
+    q1="$(mktemp)"
+    printf '{"package":{"ecosystem":"%s","name":"%s"},"version":"%s"}' "${eco}" "${name}" "${ver}" > "${q1}"
+    detail="$(curl -fsS --max-time 30 -X POST -H 'Content-Type: application/json' \
+      -d @"${q1}" 'https://api.osv.dev/v1/query' 2>/dev/null || echo '{}')"
+    rm -f "${q1}"
+    printf '%s' "${detail}" | jq -r --arg eco "${eco}" --arg name "${name}" '
+      .vulns[]?
+      | ((.aliases // [] | map(select(startswith("CVE-"))) | .[0]) // (.id | sub("^DEBIAN-"; ""))) as $cve
+      | ((.database_specific.severity // .ecosystem_specific.urgency // "unknown") | tostring) as $prio
+      | .affected[]?
+      | select(.package.ecosystem == $eco and .package.name == $name)
+      | .ranges[]?.events[]? | select(.fixed) | .fixed
+      | "\($name)\t\(.)\t\($cve)\t\($prio)"' >> "${out}" 2>/dev/null || true
+  done <<< "${affected}"
+
+  { printf '# package\tfixed_version\tcve\tpriority\n'; sort -u "${out}"; } > "${FEED_DIR}/vulns.tsv"
+  echo "fetch-feeds: vulns.tsv ($(grep -vc '^#' "${FEED_DIR}/vulns.tsv" || echo 0) fix-available CVEs for ${eco}; matcher keeps only installed<fixed)"
+  rm -f "${pkgs}" "${qbatch}" "${resp}" "${out}"
+}
+build_vulns_osv || echo "fetch-feeds: vuln feed step failed (non-fatal)" >&2
 
 echo "fetch-feeds: done -> ${FEED_DIR}"

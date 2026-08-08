@@ -17,10 +17,13 @@ if [ ! -r "${FEED}" ] || ! command -v dpkg-query >/dev/null 2>&1; then
 fi
 
 declare -A inst
+# Enumerate by SOURCE package (+ source version) to align with the OSV feed,
+# which is keyed by source package. Many binaries map to one source; dedup.
 while IFS=' ' read -r p v; do
   [ -n "${p}" ] || continue
+  [ -n "${v}" ] || continue
   inst["${p}"]="${v}"
-done < <(dpkg-query -W -f='${Package} ${Version}\n' 2>/dev/null || true)
+done < <(dpkg-query -W -f='${source:Package} ${source:Version}\n' 2>/dev/null | sort -u || true)
 
 vuln=()
 checked=0
