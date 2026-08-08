@@ -6,7 +6,6 @@
 	let servers = $state<Server[]>([]);
 	let selected = $state<string | null>(null);
 	let snap = $state<ShieldState | null>(null);
-	let loading = $state(false);
 	let error = $state<string | null>(null);
 
 	let showAdd = $state(false);
@@ -19,6 +18,8 @@
 	let actionResult = $state<string | null>(null);
 	let modalError = $state<string | null>(null);
 	let lastFocus: HTMLElement | null = null;
+
+	let inFlight = false; // guard: ignore clicks while a fetch is running
 
 	const ACTIONS: { action: ActionName; label: string }[] = [
 		{ action: 'apply-security-updates.sh', label: 'Apply security updates' },
@@ -38,17 +39,18 @@
 	}
 
 	async function select(name: string) {
+		if (inFlight) return; // don't let overlapping clicks reset snap mid-fetch
+		inFlight = true;
 		selected = name;
 		snap = null;
 		error = null;
 		actionResult = null;
-		loading = true;
 		try {
 			snap = await fetchState(name);
 		} catch (e) {
 			error = String(e);
 		} finally {
-			loading = false;
+			inFlight = false;
 		}
 	}
 
@@ -199,14 +201,14 @@
 				<button onclick={() => selected && select(selected)}>↻ Refresh</button>
 			</header>
 
-			{#if loading}
-				<p class="loading">Connecting over SSH…</p>
-			{:else if error}
+			{#if error}
 				<div class="error-box">
 					<strong>Could not reach the agent.</strong>
 					<pre>{error}</pre>
 				</div>
-			{:else if snap}
+			{/if}
+			<svelte:boundary>
+			{#if snap && !error}
 				<section class="tiles">
 					<div class="tile {sev((snap.updates?.security ?? 0) > 0, (snap.updates?.total ?? 0) > 0)}">
 						<span class="n">{snap.updates?.security ?? 0}</span>
@@ -289,7 +291,7 @@
 					<section class="list">
 						<h2>Public listening ports</h2>
 						<ul>
-							{#each (snap.ports ?? []).filter((p) => p.public) as p (p.proto + p.address + p.port)}
+							{#each (snap.ports ?? []).filter((p) => p.public) as p, i (i)}
 								<li><code>{p.proto} {p.address}:{p.port}</code> {p.process ?? ''}</li>
 							{/each}
 						</ul>
@@ -300,7 +302,7 @@
 					<section class="list">
 						<h2>Webshell findings</h2>
 						<ul>
-							{#each snap.webshell?.findings ?? [] as f (f.file + f.level + f.score)}
+							{#each snap.webshell?.findings ?? [] as f, i (i)}
 								<li>
 									<span class="badge {f.level === 'high' ? 'bad' : 'warn'}">{f.level}</span>
 									<code>{f.file}</code> — score {f.score} ({(f.signals ?? []).join(', ')})
@@ -314,7 +316,7 @@
 					<section class="list">
 						<h2>Vulnerable packages</h2>
 						<ul>
-							{#each snap.vulns?.vulnerable ?? [] as v (v.package + v.cve)}
+							{#each snap.vulns?.vulnerable ?? [] as v, i (i)}
 								<li>
 									<span class="badge warn">{v.priority}</span>
 									<code>{v.package}</code> {v.installed} → {v.fixed}
@@ -329,12 +331,22 @@
 					<section class="list">
 						<h2>Persistence changes since baseline</h2>
 						<ul>
-							{#each snap.drift?.added ?? [] as d (d)}
+							{#each snap.drift?.added ?? [] as d, i (i)}
 								<li><span class="badge bad">added</span> <code>{d}</code></li>
 							{/each}
 						</ul>
 					</section>
 				{/if}
+			{/if}
+			{#snippet failed(err)}
+				<div class="error-box">
+					<strong>Couldn't render the dashboard from this server's data.</strong>
+					<pre>{err instanceof Error ? err.message : String(err)}</pre>
+				</div>
+			{/snippet}
+			</svelte:boundary>
+			{#if !snap && !error}
+				<p class="loading">Connecting over SSH…</p>
 			{/if}
 		{/if}
 	</main>

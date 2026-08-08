@@ -8,6 +8,12 @@ const host = process.env.TAURI_DEV_HOST;
 export default defineConfig(async () => ({
   plugins: [sveltekit()],
 
+  // Pre-bundle the Tauri API up front so Vite doesn't "discover" it on first
+  // invoke() and force a full page reload mid-session (which can wedge the UI).
+  optimizeDeps: {
+    include: ["@tauri-apps/api/core", "@tauri-apps/plugin-opener"],
+  },
+
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
   // 1. prevent Vite from obscuring rust errors
