@@ -11,6 +11,8 @@
 #
 # Run manually, or on a slow timer (e.g. every 6h) — it is heavier than the
 # 5-minute state collectors.
+#
+# shellcheck disable=SC2016  # single-quoted regexes intentionally keep $_GET etc. literal
 set -euo pipefail
 
 command -v jq >/dev/null 2>&1 || { echo "webshell-scan: jq required" >&2; exit 1; }
