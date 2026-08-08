@@ -21,11 +21,14 @@ fi
 [ -n "${message}" ] || { echo "notify: empty message" >&2; exit 2; }
 command -v curl >/dev/null 2>&1 || { echo "notify: curl required" >&2; exit 1; }
 
-curl -fsS --max-time 15 \
+if curl -fsS --max-time 15 \
   -H "Title: Ubuntu Public Shield" \
   -H "Priority: ${priority}" \
   -H "Tags: shield,warning" \
   -d "${message}" \
-  "${URL}" >/dev/null 2>&1 \
-  && echo "notify: sent (${priority})" \
-  || { echo "notify: send failed" >&2; exit 1; }
+  "${URL}" >/dev/null 2>&1; then
+  echo "notify: sent (${priority})"
+else
+  echo "notify: send failed" >&2
+  exit 1
+fi
