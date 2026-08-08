@@ -86,8 +86,10 @@ Verdict after fixes: **GO** (no open P0/P1). Fixed items verified in CI; open it
 ### Recover
 - [ ] restic backup + tested restore · rollback · rebuild-from-clean · post-incident report
 
-## 🔭 v2
-- [ ] Native eBPF sensor via Rust `aya` (exec + outbound-connect + web-dir-write), gated on BTF, fallback to v1 fanotify path — after a 2-day cross-arch spike
+## 🔭 v2 (in progress)
+- [x] **Real-time file-integrity sensor (inotify)** — `agent/sensors/shield-watch.sh` + `45-file-events.sh` + desktop tile. **Live-validated on the Pi**: caught a webshell-suspect `.php` drop in `/var/www` instantly. This is the delivered substitute for eBPF (below).
+- [~] Native eBPF sensor via Rust `aya` — **DEFERRED: confirmed no BTF on the Pi** (kernel 6.1.21-v8+; `/sys/kernel/btf/vmlinux` absent). CO-RE needs a kernel rebuild that Pi OS updates clobber. Revisit only for BTF-capable hosts (the Ubuntu box may qualify — check there). inotify sensor covers the real-time need meanwhile.
+- [ ] **Live feeds** (next): vuln feed generator → `vulns.tsv` (Debian Security Tracker / OSV for the Pi; Ubuntu OVAL/USN for the Ubuntu box) + threat-intel `threat-ips.txt` (Feodo) via a `shield-feeds` timer, to light up the vulns + C2 tiles.
 - [ ] NVD enrichment · FireHOL · URLhaus/ThreatFox + DNS · CrowdSec CTI · ML/LLM webshell classifier · BPF-LSM enforcement
 
 ## ✅ Done
