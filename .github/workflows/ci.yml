@@ -40,6 +40,31 @@ jobs:
       - name: Run tests
         run: bats tests/
 
+  desktop:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Frontend — install, type-check, build
+        working-directory: desktop
+        run: |
+          npm ci
+          npm run check
+          npm run build
+      - name: Install Tauri system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libgtk-3-dev
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+      - name: Backend — cargo check
+        working-directory: desktop/src-tauri
+        run: cargo check
+
   secret-scan:
     runs-on: ubuntu-latest
     steps:

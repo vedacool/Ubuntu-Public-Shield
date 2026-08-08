@@ -49,7 +49,9 @@ bats tests/                                    # run the test suite
 | Path | What |
 |------|------|
 | `install.sh` | installs the agent on a server (idempotent, `--dry-run`) |
-| `agent/` | the agent runner (`shield-agent`) + `collectors/*.sh` |
+| `agent/` | the agent runner (`shield-agent`) + `collectors/`, `scanners/`, `actions/` |
+| `tools/` | brain-side helpers: `fetch-feeds.sh`, `notify.sh` |
+| `desktop/` | the Tauri + Svelte fleet console (frontend + Rust backend) |
 | `docs/` | `ARCHITECTURE.md`, `STACK.md` — the design + pinned versions |
 | `.github/workflows/ci.yml` | CI: shellcheck → bats → gitleaks on every push/PR |
 | `tests/` | `bats` test suite |

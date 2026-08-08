@@ -18,10 +18,11 @@ defence functions (see `docs/ARCHITECTURE.md`). `audit-software` logs findings h
 - [x] Confirmed-action layer (preview→confirm→apply→log): apply-security-updates, rebaseline-drift, run-webshell-scan, run-lynis-audit + bats
 - [x] Scoped `sudoers` example (`agent/security/shield-sudoers.example`) — v2 wires the no-login `shield` user
 
-**Desktop app (Tauri)**
-- [ ] Add-server + fleet list; SSH connect; read `latest.json`
-- [ ] Tiles: resources, listening ports (flag public), pending security updates, Lynis score
-- [ ] One confirmed action end-to-end: apply security updates (preview → confirm → apply → log)
+**Desktop app (Tauri)** — `desktop/`, CI verifies frontend build + `cargo check`
+- [x] Add-server + fleet list; SSH connect (OS ssh/ssh-agent); read `latest.json`
+- [x] Tiles: updates, public ports, Lynis, drift, webshell, C2 hits, vulns, failed services, resources
+- [x] Confirmed actions (preview→confirm modal→apply→refresh) wired to all four action scripts
+- [ ] Commit Cargo.lock (needs a cargo run first — generated in CI now); app icons; SQLite (rusqlite) instead of servers.json
 
 **Consume + feeds**
 - [ ] Netdata + CrowdSec install options in `install.sh` (flags)
