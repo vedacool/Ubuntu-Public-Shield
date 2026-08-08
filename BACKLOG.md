@@ -13,7 +13,7 @@ Verdict after fixes: **GO** (no open P0/P1). Fixed items verified in CI; open it
 - [x] `Cargo.lock` not committed for a shipped binary — committed + CI builds `--locked`.
 
 **Fixed (P2):**
-- [x] Webshell false-negative: `eval(base64_decode($_POST[...]))` scored below threshold — added `decoder-on-request-in-sink` signal + newline-stripped blob detection (`webshell-scan.sh`).
+- [x] Webshell false-negative on the canonical obfuscated shell (a decoder wrapping request data inside a sink) scored below threshold — fixed with a new detection signal + newline-stripped blob scan (webshell-scan.sh).
 - [x] Non-atomic writes: drift snapshot (`60-drift.sh`) + `webshell.json` (`webshell-scan.sh`) — tmp+mv; `LC_ALL=C` for drift sort/comm.
 - [x] apply-updates preview/apply divergence + optimistic log (`apply-security-updates.sh`) — apply the previewed list, log outcome, `confirmed_count`.
 - [x] Agent timer ran root unsandboxed — added `NoNewPrivileges`/`ProtectSystem=strict`/`ReadWritePaths`/`ProtectHome=read-only`/etc. (`install.sh`).
@@ -25,6 +25,12 @@ Verdict after fixes: **GO** (no open P0/P1). Fixed items verified in CI; open it
 **Open (P2) — schedule:**
 - [ ] Webview **CSP is `null`** (`tauri.conf.json`) — set a restrictive CSP; needs live-test verification that it doesn't break the SvelteKit bundle (Svelte auto-escapes, so this is defense-in-depth).
 - [ ] SSOT: JSON-array helper reimplemented 3× (`agent/actions/lib.sh` vs `60-drift.sh` `to_json_array` vs inline in `40-services.sh`/`webshell-scan.sh`) — promote to shared `agent/lib.sh`, align empty-strip behaviour.
+
+**Live test on the Pi (2026-08-08, Debian 11 aarch64) — validated; follow-ups:**
+- [x] Agent installs + runs on real hardware; all collectors emit correct data; systemd sandboxing verified (no permission errors); webshell scanner runs on real `/var/www` (0 FP).
+- [x] Drift collector spammed syslog (`crontab -l -u` per user, ~17 lines/5min) + wasted CPU — now reads `/var/spool/cron/crontabs` directly.
+- [ ] Drift SUID `find` runs every 5min (~10s CPU on a Pi) — consider slower cadence for heavy drift parts.
+- [ ] Ports: IPv6 UDP wildcard shows as `*` (TCP shows `[::]`) — normalise for display.
 
 **Open (P3) — polish:**
 - [ ] SSH `StrictHostKeyChecking=accept-new` (TOFU) — offer a strict mode + surface fingerprint on first add.

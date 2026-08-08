@@ -34,13 +34,13 @@ hash_str() { sha256sum | cut -d' ' -f1; }
     [ -f "${cf}" ] || continue
     printf 'cron:%s:%s\n' "${cf}" "$(hash_str < "${cf}")"
   done
-  if command -v crontab >/dev/null 2>&1 && [ -r /etc/passwd ]; then
-    while IFS=: read -r u _; do
-      ct="$(crontab -l -u "${u}" 2>/dev/null || true)"
-      [ -n "${ct}" ] || continue
-      printf 'usercron:%s:%s\n' "${u}" "$(printf '%s' "${ct}" | hash_str)"
-    done < /etc/passwd
-  fi
+  # Read user crontab spool files directly. Using `crontab -l -u` instead would
+  # fork per user AND emit a "LIST (user)" line to syslog on every run (log spam).
+  # Debian: /var/spool/cron/crontabs ; RHEL/others: /var/spool/cron
+  for spool in /var/spool/cron/crontabs/* /var/spool/cron/*; do
+    [ -f "${spool}" ] || continue
+    printf 'usercron:%s:%s\n' "$(basename "${spool}")" "$(hash_str < "${spool}")"
+  done
 
   # 3) admin-defined systemd units
   for unit in /etc/systemd/system/*.service /etc/systemd/system/*.timer; do
