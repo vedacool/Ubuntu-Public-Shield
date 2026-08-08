@@ -6,7 +6,7 @@
 # server. Requires network access — exercised during live testing.
 #
 # Outputs into ${SHIELD_FEED_DIR:-/var/lib/shield/feeds}:
-#   threat-ips.txt  — exact-match C2 IPs (abuse.ch Feodo, CC0)
+#   threat-ips.txt  — exact-match C2 IPs (abuse.ch ThreatFox + Feodo, CC0)
 #   drop.txt        — Spamhaus DROP CIDRs (brain-side prefix matching)
 #   vulns.tsv       — package<TAB>fixed_version<TAB>cve<TAB>priority  (see note)
 #
@@ -15,6 +15,10 @@
 set -euo pipefail
 
 FEED_DIR="${SHIELD_FEED_DIR:-/var/lib/shield/feeds}"
+# abuse.ch ThreatFox recent botnet_cc IOCs (CC0) — the live C2 IP source.
+# Feodo's IP blocklist is near-dead (a handful of stale IPs) so we merge it in
+# only as a supplement.
+THREATFOX_URL="${SHIELD_THREATFOX_URL:-https://threatfox.abuse.ch/export/csv/ip-port/recent/}"
 FEODO_URL="${SHIELD_FEODO_URL:-https://feodotracker.abuse.ch/downloads/ipblocklist.txt}"
 DROP_URL="${SHIELD_DROP_URL:-https://www.spamhaus.org/drop/drop.txt}"
 
@@ -33,15 +37,32 @@ fetch() {  # fetch <url> <dest>
   fi
 }
 
-# --- Feodo C2 IPs -> exact-match bundle (strip comments/blank) --------------
-raw="$(mktemp)"
-if curl -fsSL --max-time 60 "${FEODO_URL}" -o "${raw}" 2>/dev/null; then
-  grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' "${raw}" | sort -u > "${FEED_DIR}/threat-ips.txt" || true
-  echo "fetch-feeds: threat-ips.txt ($(wc -l < "${FEED_DIR}/threat-ips.txt" | tr -d ' ') IPs)"
-else
-  echo "fetch-feeds: WARNING could not fetch Feodo feed" >&2
+# --- C2 IPs: abuse.ch ThreatFox (primary) + Feodo (supplement) --------------
+# Extract with grep -oE (leading IPv4 only) so trailing CRLF / :port / quotes
+# never defeat the match — that CRLF trap silently emptied the old Feodo parse.
+ips_tmp="$(mktemp)"
+
+tf="$(mktemp)"
+if curl -fsSL --max-time 90 "${THREATFOX_URL}" -o "${tf}" 2>/dev/null; then
+  # CSV; ioc_value ("IP:PORT") is the 3rd '", "'-separated field.
+  grep -v '^#' "${tf}" | awk -F'", "' 'NF>=4 {print $3}' \
+    | grep -oE '^([0-9]{1,3}\.){3}[0-9]{1,3}' >> "${ips_tmp}" || true
 fi
-rm -f "${raw}"
+rm -f "${tf}"
+
+fe="$(mktemp)"
+if curl -fsSL --max-time 60 "${FEODO_URL}" -o "${fe}" 2>/dev/null; then
+  grep -oE '^([0-9]{1,3}\.){3}[0-9]{1,3}' "${fe}" >> "${ips_tmp}" || true
+fi
+rm -f "${fe}"
+
+if [ -s "${ips_tmp}" ]; then
+  sort -u "${ips_tmp}" > "${FEED_DIR}/threat-ips.txt"
+  echo "fetch-feeds: threat-ips.txt ($(wc -l < "${FEED_DIR}/threat-ips.txt" | tr -d ' ') C2 IPs — ThreatFox + Feodo)"
+else
+  echo "fetch-feeds: WARNING no C2 IPs fetched (kept previous threat-ips.txt if any)" >&2
+fi
+rm -f "${ips_tmp}"
 
 # --- Spamhaus DROP CIDRs (brain does prefix matching) -----------------------
 fetch "${DROP_URL}" "${FEED_DIR}/drop.txt"
