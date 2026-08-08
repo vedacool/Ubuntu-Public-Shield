@@ -166,6 +166,47 @@ else
   log "inotify-tools unavailable — skipping real-time sensor (periodic drift still covers persistence)."
 fi
 
+# --- Threat/vuln feeds (fetched on a timer) ---------------------------------
+log "Installing feed fetcher (shield-feeds.timer)"
+if ! ${DRY_RUN}; then
+  cat > /etc/systemd/system/shield-feeds.service <<EOF
+[Unit]
+Description=Ubuntu Public Shield feed fetcher (threat-intel + vuln bundles)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=${SHIELD_HOME}/tools/fetch-feeds.sh
+Nice=15
+IOSchedulingClass=idle
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=${STATE_DIR%/state}
+ProtectHome=yes
+PrivateTmp=yes
+EOF
+
+  cat > /etc/systemd/system/shield-feeds.timer <<EOF
+[Unit]
+Description=Refresh Ubuntu Public Shield threat/vuln feeds
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=12h
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+fi
+run "systemctl daemon-reload"
+run "systemctl enable --now shield-feeds.timer"
+
+# Fetch once now so the first collection already has feed data.
+log "Fetching feeds (first run)"
+run "'${SHIELD_HOME}/tools/fetch-feeds.sh' || true"
+
 # --- First run -------------------------------------------------------------
 log "Running first collection"
 run "'${SHIELD_HOME}/shield-agent' || true"
