@@ -1,0 +1,49 @@
+# software-start CI — shell/config hardening toolkit.
+# Stages: lint (shellcheck) → test (bats) → secret-scan (gitleaks).
+# No build/dependency-audit: this project has no package manager (yet).
+# If Ansible is added later, add an `ansible-lint` job.
+
+name: CI
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - name: Lint shell scripts
+        run: |
+          # Find shell scripts by extension and by shebang; skip vendored bats.
+          mapfile -t files < <(
+            { grep -rIl --exclude-dir=.git --exclude-dir=tests/bats -E '^#!.*\b(bash|sh)\b' . || true
+              find . -path ./.git -prune -o -name '*.sh' -print || true
+            } | sort -u
+          )
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No shell scripts to lint yet — skipping (not a failure)."
+            exit 0
+          fi
+          printf '%s\n' "${files[@]}"
+          shellcheck -x "${files[@]}"
+
+  bats:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install bats
+        run: sudo apt-get update && sudo apt-get install -y bats
+      - name: Run tests
+        run: bats tests/
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }      # full history so the scan covers past commits too
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2

@@ -1,0 +1,22 @@
+# This toolkit runs on Linux. Force LF on everything text so shell scripts,
+# configs, and hooks never get CRLF (CRLF breaks bash: "#!/usr/bin/env bash\r").
+* text=auto eol=lf
+
+# Belt-and-braces for the file types that MUST stay LF regardless of content sniffing:
+*.sh    text eol=lf
+*.bats  text eol=lf
+*.bash  text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.py    text eol=lf
+*.md    text eol=lf
+*.json  text eol=lf
+.githooks/*  text eol=lf
+
+# Known-binary types: never touch line endings.
+*.png binary
+*.jpg binary
+*.gz  binary
+*.p12 binary
+*.pfx binary
+*.jks binary

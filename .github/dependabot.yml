@@ -1,0 +1,12 @@
+# software-start — automated dependency updates (free on GitHub, incl. private repos).
+# This project has no application package manager yet, so we only keep the CI
+# Actions themselves patched. When you add an ecosystem (e.g. Ansible Galaxy via
+# a manifest, or a helper package.json), add a matching `- package-ecosystem` entry.
+
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5

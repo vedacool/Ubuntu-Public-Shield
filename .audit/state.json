@@ -1,0 +1,17 @@
+{
+  "_comment": "Seeded by software-start so audit-software's incremental mode works from day 1. lastAuditCommit=null means 'never audited' -> the first audit run is effectively a full sweep. The profile is shared with audit-software's Step 0 so it doesn't re-derive it.",
+  "lastAuditCommit": null,
+  "lastFullAuditCommit": null,
+  "verifiedGood": [],
+  "profile": {
+    "type": "infra/IaC + script (server-hardening toolkit)",
+    "stack": "Bash/shell + Apache/MySQL/PHP config; bats (test), shellcheck (lint), gitleaks (secret-scan); Ansible possible later",
+    "dataSensitivity": "auth secrets / server credentials handled at runtime (DB roots, SSH keys, TLS); no end-user PII stored by the toolkit itself",
+    "exposure": "configures a public-internet LAMP server; the repo is a published/shared toolkit",
+    "deployModel": "self-hosted single box (runs on the target Ubuntu server); published toolkit",
+    "team": "small / owner-maintained",
+    "maturity": "will ship and be maintained"
+  },
+  "seededBy": "software-start",
+  "seededAtCommit": null
+}

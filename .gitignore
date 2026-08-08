@@ -1,0 +1,64 @@
+# --- software-start core .gitignore (merge, don't overwrite) ---
+# Secrets & local config — the most important lines here
+.env
+.env.*
+!.env.example
+!.env.sample
+*.pem
+*.key
+*_rsa
+*_rsa.pub
+credentials.json
+service-account*.json
+secrets.*
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*~
+
+# Logs & temp
+*.log
+logs/
+tmp/
+.tmp/
+
+# Coverage / test output
+coverage/
+.nyc_output/
+.pytest_cache/
+
+# --- Shell / ops / LAMP-hardening specifics ---
+# Server credentials, TLS material, SSH keys, generated configs with secrets
+*.crt
+*.csr
+*.p12
+*.pfx
+*.jks
+known_hosts
+authorized_keys
+
+# Ansible (if/when added)
+*.retry
+.vault_pass
+vault_pass.txt
+*.vault
+ansible/inventory/*.local
+.galaxy_install_info
+
+# Backups & dumps the scripts may produce (may contain data/creds)
+*.sql
+*.sql.gz
+*.dump
+*.bak
+backups/
+*.tar.gz
+
+# bats test dependencies (vendored)
+tests/bats/
+tests/test_helper/bats-support/
+tests/test_helper/bats-assert/

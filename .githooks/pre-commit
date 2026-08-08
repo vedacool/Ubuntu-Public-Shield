@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# software-start pre-commit hook — local secret scan before a commit lands.
+# Enable once: git config core.hooksPath .githooks
+# Requires gitleaks on PATH (https://github.com/gitleaks/gitleaks). If gitleaks
+# isn't installed, the hook warns and lets the commit through (CI still scans).
+set -euo pipefail
+
+if command -v gitleaks >/dev/null 2>&1; then
+  echo "pre-commit: running gitleaks on staged changes…"
+  gitleaks protect --staged --no-banner --redact
+else
+  echo "pre-commit: gitleaks not found on PATH — skipping local scan (CI will still scan)."
+  echo "            install: https://github.com/gitleaks/gitleaks/releases"
+fi
