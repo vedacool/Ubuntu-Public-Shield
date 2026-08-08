@@ -58,7 +58,8 @@ Verdict after fixes: **GO** (no open P0/P1). Fixed items verified in CI; open it
 - [x] Add-server + fleet list; SSH connect (OS ssh/ssh-agent, key auth); read `latest.json`
 - [x] Tiles: updates, public ports, Lynis, drift, webshell, C2 hits, vulns, failed services, resources — all rendering live
 - [x] Fixed live-test blocker: keyed `{#each}` crash on duplicate real-world keys (udp 5353 avahi+myst); now index-keyed + wrapped in `<svelte:boundary>`
-- [ ] Confirmed actions (preview→confirm modal→apply): wired to all four scripts; **UI flow not yet exercised end-to-end on the Pi** (SSH `sudo -n` path verified separately)
+- [x] Confirmed actions (preview→confirm modal→apply→refresh): **validated end-to-end on the Pi** — "Accept current drift as baseline" ran `sudo -n` over SSH, reset the baseline, drift went 1→0.
+- [ ] UX: state-changing actions (esp. rebaseline) should trigger an immediate agent re-collection so the dashboard reflects the change at once, instead of lagging up to 5 min for the next timer run.
 - [ ] Commit Cargo.lock (needs a cargo run first — generated in CI now); app icons; SQLite (rusqlite) instead of servers.json
 
 **Consume + feeds**
