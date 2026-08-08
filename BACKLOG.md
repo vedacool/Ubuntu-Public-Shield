@@ -92,7 +92,11 @@ Verdict after fixes: **GO** (no open P0/P1). Fixed items verified in CI; open it
 - [x] **Live feeds** — `shield-feeds.timer` + `tools/fetch-feeds.sh`. **Live-validated on the Pi:**
   - C2/bad-IP: **abuse.ch ThreatFox** (~1,970 IPs, CC0) — Feodo was near-dead + CRLF-broke the parse; switched + fixed.
   - Vulns: **OSV** querybatch→detail, keeping only fix-available CVEs; `90-vulns.sh` flags installed<fixed. Found a real miss: **bind9 deb11u5→u6, 15 CVEs**.
-  - Polish: (a) `vulnerable_count` counts CVEs, not distinct packages — tile "vulnerable packages: 15" is really 1 pkg / 15 CVEs; add `package_count` + relabel. (b) OSV `priority` comes through "unknown" for Debian — enrich (CVSS/Debian urgency).
+  - **Accuracy fixes needed (found via live check — bind9 case):**
+    - (a) **apt-candidate cross-check** — OSV flagged bind9 fixed@deb11u6 but the repo candidate is only deb11u5 (fix pending/not published). Only report "update available" when `apt` candidate ≥ OSV fixed; otherwise categorise as "known-vulnerable, fix pending". Reporting unfixable updates = crying wolf.
+    - (b) **binary/source clarity** — matcher enumerates SOURCE packages, so it reported "bind9" though that binary isn't installed (only libbind9-* are). Map back to the installed binary package(s) for display, or label clearly as source-level.
+    - (c) `vulnerable_count` counts CVEs, not distinct packages (tile "15" = 1 pkg / 15 CVEs) — add `package_count` + relabel tile.
+    - (d) OSV `priority` = "unknown" for Debian — enrich (CVSS / Debian urgency).
 - [ ] NVD enrichment · FireHOL · URLhaus/ThreatFox + DNS · CrowdSec CTI · ML/LLM webshell classifier · BPF-LSM enforcement
 
 ## ✅ Done
