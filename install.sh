@@ -64,15 +64,23 @@ if ! command -v jq >/dev/null 2>&1; then
   fi
 fi
 
+# inotify-tools powers the real-time file-integrity sensor (shield-watch).
+# Optional — if it can't be installed, the sensor is simply skipped.
+if ! command -v inotifywait >/dev/null 2>&1 && command -v apt-get >/dev/null 2>&1; then
+  log "Installing dependency: inotify-tools (real-time file sensor)"
+  run "apt-get install -y inotify-tools || true"
+fi
+
 # --- Install agent files ---------------------------------------------------
 log "Installing agent -> ${SHIELD_HOME}"
 run "install -d -m 0755 '${SHIELD_HOME}' '${STATE_DIR}' '${STATE_DIR%/state}/feeds'"
-run "install -d -m 0755 '${SHIELD_HOME}/collectors' '${SHIELD_HOME}/scanners' '${SHIELD_HOME}/actions' '${SHIELD_HOME}/tools'"
+run "install -d -m 0755 '${SHIELD_HOME}/collectors' '${SHIELD_HOME}/scanners' '${SHIELD_HOME}/actions' '${SHIELD_HOME}/tools' '${SHIELD_HOME}/sensors'"
 run "install -m 0755 '${SRC_DIR}/shield-agent' '${SHIELD_HOME}/shield-agent'"
 run "install -m 0644 '${SRC_DIR}/VERSION' '${SHIELD_HOME}/VERSION'"
 run "install -m 0755 ${SRC_DIR}/collectors/*.sh '${SHIELD_HOME}/collectors/'"
 run "install -m 0755 ${SRC_DIR}/scanners/*.sh '${SHIELD_HOME}/scanners/'"
 run "install -m 0755 ${SRC_DIR}/actions/*.sh '${SHIELD_HOME}/actions/'"
+run "install -m 0755 ${SRC_DIR}/sensors/*.sh '${SHIELD_HOME}/sensors/'"
 if compgen -G "$(dirname "${SRC_DIR}")/tools/*.sh" >/dev/null 2>&1; then
   run "install -m 0755 $(dirname "${SRC_DIR}")/tools/*.sh '${SHIELD_HOME}/tools/'"
 fi
@@ -126,6 +134,37 @@ fi
 
 run "systemctl daemon-reload"
 run "systemctl enable --now shield-agent.timer"
+
+# --- Real-time file-integrity sensor (optional; needs inotify-tools) --------
+if command -v inotifywait >/dev/null 2>&1; then
+  log "Installing real-time file sensor (shield-watch.service)"
+  if ! ${DRY_RUN}; then
+    cat > /etc/systemd/system/shield-watch.service <<EOF
+[Unit]
+Description=Ubuntu Public Shield real-time file-integrity sensor
+After=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=${SHIELD_HOME}/sensors/shield-watch.sh
+Restart=always
+RestartSec=5
+Nice=10
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=${STATE_DIR%/state}
+ProtectHome=read-only
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+  fi
+  run "systemctl daemon-reload"
+  run "systemctl enable --now shield-watch.service"
+else
+  log "inotify-tools unavailable — skipping real-time sensor (periodic drift still covers persistence)."
+fi
 
 # --- First run -------------------------------------------------------------
 log "Running first collection"
