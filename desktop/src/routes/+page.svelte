@@ -265,6 +265,21 @@
 						<span class="s">{snap.services?.running_count ?? 0} running</span>
 					</div>
 
+					<div
+						class="tile {sev(
+							(snap.file_events?.webshell_suspect ?? 0) > 0,
+							(snap.file_events?.persistence ?? 0) > 0
+						)}"
+					>
+						<span class="n">{snap.file_events?.webshell_suspect ?? 0}</span>
+						<span class="l">live file alerts</span>
+						<span class="s">
+							{snap.file_events?.persistence ?? 0} persistence · {snap.file_events?.watching
+								? 'watching'
+								: 'off'}
+						</span>
+					</div>
+
 					<div class="tile ok">
 						<span class="n">{snap.system?.disk_root_pct ?? '—'}%</span>
 						<span class="l">disk /</span>
@@ -333,6 +348,21 @@
 						<ul>
 							{#each snap.drift?.added ?? [] as d, i (i)}
 								<li><span class="badge bad">added</span> <code>{d}</code></li>
+							{/each}
+						</ul>
+					</section>
+				{/if}
+
+				{#if (snap.file_events?.recent?.length ?? 0) > 0}
+					<section class="list">
+						<h2>Recent file events (real-time)</h2>
+						<ul>
+							{#each snap.file_events?.recent ?? [] as e, i (i)}
+								<li>
+									<span class="badge {e.type === 'webshell-suspect' ? 'bad' : 'warn'}">{e.type}</span>
+									<code>{e.path}</code>
+									<span class="cve">{e.event} · {e.ts}</span>
+								</li>
 							{/each}
 						</ul>
 					</section>

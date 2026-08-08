@@ -68,6 +68,13 @@ export interface ShieldState {
 	};
 	threat_intel?: { feed_present?: boolean; match_count?: number; matches?: { ip: string }[] };
 	vulns?: { feed_present?: boolean; vulnerable_count?: number; vulnerable?: VulnEntry[] };
+	file_events?: {
+		watching?: boolean;
+		total?: number;
+		webshell_suspect?: number;
+		persistence?: number;
+		recent?: { ts: string; type: string; path: string; event: string }[];
+	};
 }
 
 export type ActionName =
