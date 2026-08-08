@@ -12,8 +12,9 @@ defence functions (see `docs/ARCHITECTURE.md`). `audit-software` logs findings h
 ## 🎯 v1 — near-term (this phase)
 **Agent + install**
 - [x] Agent runner + `install.sh` + systemd timer (sysinfo / ports / updates collectors)
-- [ ] `40-services.sh`, `50-lynis.sh` (hardening score), `60-drift.sh` (baseline + diff of ports/pkgs/cron/systemd/authorized_keys)
-- [ ] Webshell scoring engine (entropy → AST normalise + recursive decode → taint-proximity → YARA-X)
+- [x] `40-services.sh`, `50-lynis.sh` (reads last hardening score), `60-drift.sh` (baseline + diff of authorized_keys/cron/systemd/SUID)
+- [x] Webshell scanner v1 (heuristic: sinks + taint-proximity + obfuscation + recursive-decode) + bats tests
+- [ ] Webshell deepening: true AST/taint via PHP tokenizer; wire YARA-X community rules
 - [ ] Scoped `sudoers` for confirmed actions (replace run-as-root)
 
 **Desktop app (Tauri)**

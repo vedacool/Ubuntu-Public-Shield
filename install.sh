@@ -67,10 +67,11 @@ fi
 # --- Install agent files ---------------------------------------------------
 log "Installing agent -> ${SHIELD_HOME}"
 run "install -d -m 0755 '${SHIELD_HOME}' '${STATE_DIR}'"
-run "install -d -m 0755 '${SHIELD_HOME}/collectors'"
+run "install -d -m 0755 '${SHIELD_HOME}/collectors' '${SHIELD_HOME}/scanners'"
 run "install -m 0755 '${SRC_DIR}/shield-agent' '${SHIELD_HOME}/shield-agent'"
 run "install -m 0644 '${SRC_DIR}/VERSION' '${SHIELD_HOME}/VERSION'"
 run "install -m 0755 ${SRC_DIR}/collectors/*.sh '${SHIELD_HOME}/collectors/'"
+run "install -m 0755 ${SRC_DIR}/scanners/*.sh '${SHIELD_HOME}/scanners/'"
 
 # --- systemd service + timer (generated so --interval works) ----------------
 log "Installing systemd service + timer (interval: ${INTERVAL})"
