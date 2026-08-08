@@ -54,10 +54,11 @@ Verdict after fixes: **GO** (no open P0/P1). Fixed items verified in CI; open it
 - [x] Confirmed-action layer (preview→confirm→apply→log): apply-security-updates, rebaseline-drift, run-webshell-scan, run-lynis-audit + bats
 - [x] Scoped `sudoers` example (`agent/security/shield-sudoers.example`) — v2 wires the no-login `shield` user
 
-**Desktop app (Tauri)** — `desktop/`, CI verifies frontend build + `cargo check`
-- [x] Add-server + fleet list; SSH connect (OS ssh/ssh-agent); read `latest.json`
-- [x] Tiles: updates, public ports, Lynis, drift, webshell, C2 hits, vulns, failed services, resources
-- [x] Confirmed actions (preview→confirm modal→apply→refresh) wired to all four action scripts
+**Desktop app (Tauri)** — `desktop/`, CI verifies frontend build + `cargo check`. **Live-validated on the Pi 2026-08-08: full dashboard renders real data over SSH.**
+- [x] Add-server + fleet list; SSH connect (OS ssh/ssh-agent, key auth); read `latest.json`
+- [x] Tiles: updates, public ports, Lynis, drift, webshell, C2 hits, vulns, failed services, resources — all rendering live
+- [x] Fixed live-test blocker: keyed `{#each}` crash on duplicate real-world keys (udp 5353 avahi+myst); now index-keyed + wrapped in `<svelte:boundary>`
+- [ ] Confirmed actions (preview→confirm modal→apply): wired to all four scripts; **UI flow not yet exercised end-to-end on the Pi** (SSH `sudo -n` path verified separately)
 - [ ] Commit Cargo.lock (needs a cargo run first — generated in CI now); app icons; SQLite (rusqlite) instead of servers.json
 
 **Consume + feeds**
