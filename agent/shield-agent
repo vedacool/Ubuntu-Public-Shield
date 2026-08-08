@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+#
+# shield-agent — runs each collector, merges their JSON, writes atomic state.
+# Read-only in v1. No network listener. Invoked by a systemd timer (or manually).
+#
+# Output: ${SHIELD_STATE_DIR}/latest.json  (a single JSON document the desktop
+# app reads over SSH). A rolling history copy is kept for trend/drift.
+set -euo pipefail
+
+SHIELD_HOME="${SHIELD_HOME:-/opt/shield}"
+STATE_DIR="${SHIELD_STATE_DIR:-/var/lib/shield/state}"
+COLLECTORS_DIR="${SHIELD_HOME}/collectors"
+VERSION="$(cat "${SHIELD_HOME}/VERSION" 2>/dev/null || echo "0.0.0")"
+
+command -v jq >/dev/null 2>&1 || { echo "shield-agent: jq is required" >&2; exit 1; }
+mkdir -p "${STATE_DIR}"
+
+meta="$(jq -n \
+  --arg v "${VERSION}" \
+  --arg ts "$(date -u +%FT%TZ)" \
+  --arg host "$(hostname)" \
+  '{meta: {agent_version: $v, collected_at: $ts, host: $host, functions: {}}}')"
+
+fragments=("${meta}")
+
+if [ -d "${COLLECTORS_DIR}" ]; then
+  for collector in "${COLLECTORS_DIR}"/*.sh; do
+    [ -e "${collector}" ] || continue
+    name="$(basename "${collector}" .sh)"
+    if out="$(bash "${collector}" 2>/dev/null)" && printf '%s' "${out}" | jq -e . >/dev/null 2>&1; then
+      fragments+=("${out}")
+    else
+      # A failing collector must never take down the whole run — record it.
+      fragments+=("$(jq -n --arg n "${name}" '{errors: {($n): "collector failed"}}')")
+    fi
+  done
+fi
+
+# Merge all fragments into one object (deep-ish: later keys win at top level).
+tmp="${STATE_DIR}/latest.json.tmp"
+printf '%s\n' "${fragments[@]}" | jq -s 'reduce .[] as $x ({}; . * $x)' > "${tmp}"
+mv -f "${tmp}" "${STATE_DIR}/latest.json"
+
+# Keep a small rolling history (last ~500 snapshots) for trends/drift.
+# Filenames are timestamped so they sort chronologically; prune all but the last 500.
+hist_dir="${STATE_DIR}/history"
+mkdir -p "${hist_dir}"
+cp -f "${STATE_DIR}/latest.json" "${hist_dir}/$(date -u +%Y%m%dT%H%M%SZ).json"
+find "${hist_dir}" -maxdepth 1 -name '*.json' -printf '%f\n' 2>/dev/null \
+  | sort | head -n -500 | while read -r old; do rm -f "${hist_dir:?}/${old}"; done
+
+echo "shield-agent: wrote ${STATE_DIR}/latest.json"

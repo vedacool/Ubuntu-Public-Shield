@@ -1,0 +1,118 @@
+#!/usr/bin/env bash
+#
+# Ubuntu Public Shield — agent installer.
+# Run ON the server you want to protect:
+#
+#     git clone https://github.com/vedacool/Ubuntu-Public-Shield.git
+#     cd Ubuntu-Public-Shield
+#     sudo bash install.sh                 # or: sudo bash install.sh --dry-run
+#
+# Installs the read-only agent to /opt/shield and a systemd timer that refreshes
+# /var/lib/shield/state/latest.json. Opens NO network port. Idempotent.
+set -euo pipefail
+
+SHIELD_HOME="/opt/shield"
+STATE_DIR="/var/lib/shield/state"
+INTERVAL="5min"
+DRY_RUN=false
+
+for arg in "$@"; do
+  case "${arg}" in
+    --dry-run)      DRY_RUN=true ;;
+    --interval=*)   INTERVAL="${arg#*=}" ;;
+    -h|--help)
+      grep -E '^#( |$)' "$0" | sed 's/^#\s\?//'; exit 0 ;;
+    *) echo "Unknown option: ${arg}" >&2; exit 2 ;;
+  esac
+done
+
+log() { printf '[shield-install] %s\n' "$*"; }
+# shellcheck disable=SC2294  # eval is intentional: run() previews or executes a command string
+run() { if ${DRY_RUN}; then log "DRY: $*"; else eval "$@"; fi; }
+
+# --- Preconditions ---------------------------------------------------------
+if [ "$(id -u)" -ne 0 ]; then
+  echo "Please run as root:  sudo bash install.sh" >&2
+  exit 1
+fi
+
+SRC_DIR="$(cd "$(dirname "$0")" && pwd)/agent"
+if [ ! -d "${SRC_DIR}" ]; then
+  echo "Could not find ./agent next to install.sh — run this from the cloned repo." >&2
+  exit 1
+fi
+
+# --- Detect environment ----------------------------------------------------
+os_pretty="unknown"; os_id=""; os_like=""
+# shellcheck disable=SC1091
+if [ -r /etc/os-release ]; then . /etc/os-release; os_pretty="${PRETTY_NAME:-unknown}"; os_id="${ID:-}"; os_like="${ID_LIKE:-}"; fi
+log "OS: ${os_pretty}   arch: $(uname -m)   kernel: $(uname -r)"
+
+case "${os_id} ${os_like}" in
+  *debian*|*ubuntu*) : ;;
+  *) log "WARNING: v1 targets Debian/Ubuntu. apt-based collectors may report 'none' here." ;;
+esac
+
+# --- Dependencies ----------------------------------------------------------
+if ! command -v jq >/dev/null 2>&1; then
+  log "Installing dependency: jq"
+  if command -v apt-get >/dev/null 2>&1; then
+    run "apt-get update -y && apt-get install -y jq"
+  else
+    echo "jq is required but no apt-get found — install jq manually and re-run." >&2
+    exit 1
+  fi
+fi
+
+# --- Install agent files ---------------------------------------------------
+log "Installing agent -> ${SHIELD_HOME}"
+run "install -d -m 0755 '${SHIELD_HOME}' '${STATE_DIR}'"
+run "install -d -m 0755 '${SHIELD_HOME}/collectors'"
+run "install -m 0755 '${SRC_DIR}/shield-agent' '${SHIELD_HOME}/shield-agent'"
+run "install -m 0644 '${SRC_DIR}/VERSION' '${SHIELD_HOME}/VERSION'"
+run "install -m 0755 ${SRC_DIR}/collectors/*.sh '${SHIELD_HOME}/collectors/'"
+
+# --- systemd service + timer (generated so --interval works) ----------------
+log "Installing systemd service + timer (interval: ${INTERVAL})"
+if ${DRY_RUN}; then
+  log "DRY: would write /etc/systemd/system/shield-agent.{service,timer}"
+else
+  cat > /etc/systemd/system/shield-agent.service <<EOF
+[Unit]
+Description=Ubuntu Public Shield agent (collect system state)
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=${SHIELD_HOME}/shield-agent
+Nice=10
+IOSchedulingClass=idle
+EOF
+
+  cat > /etc/systemd/system/shield-agent.timer <<EOF
+[Unit]
+Description=Run Ubuntu Public Shield agent periodically
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=${INTERVAL}
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+fi
+
+run "systemctl daemon-reload"
+run "systemctl enable --now shield-agent.timer"
+
+# --- First run -------------------------------------------------------------
+log "Running first collection"
+run "'${SHIELD_HOME}/shield-agent' || true"
+
+log "Done."
+log "State file: ${STATE_DIR}/latest.json"
+if ! ${DRY_RUN}; then
+  log "Preview:"
+  jq '.meta, .system, .updates, {ports_public_count}' "${STATE_DIR}/latest.json" 2>/dev/null || true
+fi

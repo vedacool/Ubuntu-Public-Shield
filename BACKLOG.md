@@ -1,38 +1,53 @@
-# Backlog — Ubuntu Public LAMP Server Shield
+# Backlog — Ubuntu Public Shield
 
-The single source of truth for tasks, findings, and the roadmap. `audit-software`
-logs findings here (with severity + `file:line`); tick them when resolved.
+Single source of truth for tasks, findings, and the roadmap. Organised by the five
+defence functions (see `docs/ARCHITECTURE.md`). `audit-software` logs findings here.
 
-## 🚩 Manual follow-ups from software-start
-_Things the setup couldn't do for you — do these next._
+## 🚩 Manual follow-ups
+- [ ] On the Pi: run `ls /sys/kernel/btf/vmlinux` — decides whether v2 eBPF works without a kernel rebuild.
+- [ ] Verify LMD version (1.6.6 vs 2.0.1) before pinning.
+- [ ] Enable Dependabot in repo Settings; add branch protection on `main`.
+- [ ] Decide desktop app ↔ agent connection: SSH key setup (dedicated `shield` user + authorized key) vs enrollment token.
 
-- [ ] Create the GitHub remote and push `main` — this triggers the first CI run (shellcheck / bats / gitleaks).
-- [ ] Enable Dependabot in the repo (GitHub → Settings → Code security) so `.github/dependabot.yml` takes effect.
-- [ ] (Optional) Install the local pre-commit gitleaks hook: `git config core.hooksPath .githooks` (needs `gitleaks` on PATH).
-- [ ] As real hardening scripts land, add a `.bats` file per script area and keep shellcheck clean.
+## 🎯 v1 — near-term (this phase)
+**Agent + install**
+- [x] Agent runner + `install.sh` + systemd timer (sysinfo / ports / updates collectors)
+- [ ] `40-services.sh`, `50-lynis.sh` (hardening score), `60-drift.sh` (baseline + diff of ports/pkgs/cron/systemd/authorized_keys)
+- [ ] Webshell scoring engine (entropy → AST normalise + recursive decode → taint-proximity → YARA-X)
+- [ ] Scoped `sudoers` for confirmed actions (replace run-as-root)
 
-## 🔧 To do
+**Desktop app (Tauri)**
+- [ ] Add-server + fleet list; SSH connect; read `latest.json`
+- [ ] Tiles: resources, listening ports (flag public), pending security updates, Lynis score
+- [ ] One confirmed action end-to-end: apply security updates (preview → confirm → apply → log)
 
-- [ ] Decide the top-level layout for scripts vs. config (e.g. `scripts/`, `config/`, `roles/`) and regenerate `CODEMAP/` once it exists.
-- [ ] Add a safety guard so scripts refuse to run unless `TARGET_HOSTNAME` matches the current host.
+**Consume + feeds**
+- [ ] Netdata + CrowdSec install options in `install.sh` (flags)
+- [ ] Vuln matcher: dpkg → Ubuntu OVAL/USN + OSV (Composer); `dpkg --compare-versions`
+- [ ] Threat-intel matcher: Feodo (CC0) + Spamhaus DROP via radix trie; DB-IP Lite GeoIP
+- [ ] ntfy phone alerts (outbound only)
 
-## 🧱 Build queue (discussed, not yet greenlit)
+## 🗂 By function (roadmap)
+### Identify
+- [ ] Asset/package/web-app inventory (incl. WordPress plugin versions via wp-cli) · TLS cert expiry · exposed-secret scan · outside-view nmap (from PC)
 
-- [ ] UFW firewall baseline (deny incoming, allow SSH/HTTP/HTTPS + `UFW_EXTRA_TCP_PORTS`).
-- [ ] SSH hardening (move port, disable root login, key-only auth, `SSH_ALLOW_USER`).
-- [ ] fail2ban for sshd + Apache auth.
-- [ ] Apache hardening (disable server tokens/signature, TLS + HSTS, security headers, disable unused modules).
-- [ ] MySQL/MariaDB hardening (`mysql_secure_installation` equivalent, least-priv app user).
-- [ ] PHP hardening (`disable_functions`, `expose_php=Off`, open_basedir, upload limits).
-- [ ] Automatic security updates (unattended-upgrades) + Let's Encrypt auto-renew.
-- [ ] Consider migrating to Ansible for idempotent, declarative application.
+### Protect
+- [ ] apt + unattended-upgrades control · web-app patching · UFW view/edit · SSH-key/account audit · egress rules
 
-## 🗺 Roadmap
+### Detect
+- [ ] AIDE file integrity · chkrootkit · persistence diff (cron/systemd/authorized_keys) · webshell scanner · C2/outbound match · login anomaly + geo · **tamper/blinding detection of the guard** · searchable logs
 
-- v0: individual bash hardening scripts, each shellcheck-clean and bats-tested.
-- v1: single orchestrator script + `.env`-driven config + dry-run mode.
-- v2: optional Ansible role for repeatable, idempotent runs across hosts.
+### Respond
+- [ ] Incident timeline/correlation · guided one-click containment (isolate keeping SSH, kill, block, disable) · evidence capture
+
+### Recover
+- [ ] restic backup + tested restore · rollback · rebuild-from-clean · post-incident report
+
+## 🔭 v2
+- [ ] Native eBPF sensor via Rust `aya` (exec + outbound-connect + web-dir-write), gated on BTF, fallback to v1 fanotify path — after a 2-day cross-arch spike
+- [ ] NVD enrichment · FireHOL · URLhaus/ThreatFox + DNS · CrowdSec CTI · ML/LLM webshell classifier · BPF-LSM enforcement
 
 ## ✅ Done
-
-- Project scaffolding via software-start (git, .gitignore, CI, tests, knowledge layer).
+- [x] software-start baseline (git, CI, tests, knowledge layer)
+- [x] Architecture + stack + version research; hybrid-native decision (`docs/ARCHITECTURE.md`, `docs/STACK.md`)
+- [x] v1 agent foundation: runner, install.sh, systemd timer, first three collectors
