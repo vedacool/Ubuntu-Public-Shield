@@ -66,13 +66,16 @@ fi
 
 # --- Install agent files ---------------------------------------------------
 log "Installing agent -> ${SHIELD_HOME}"
-run "install -d -m 0755 '${SHIELD_HOME}' '${STATE_DIR}'"
-run "install -d -m 0755 '${SHIELD_HOME}/collectors' '${SHIELD_HOME}/scanners' '${SHIELD_HOME}/actions'"
+run "install -d -m 0755 '${SHIELD_HOME}' '${STATE_DIR}' '${STATE_DIR%/state}/feeds'"
+run "install -d -m 0755 '${SHIELD_HOME}/collectors' '${SHIELD_HOME}/scanners' '${SHIELD_HOME}/actions' '${SHIELD_HOME}/tools'"
 run "install -m 0755 '${SRC_DIR}/shield-agent' '${SHIELD_HOME}/shield-agent'"
 run "install -m 0644 '${SRC_DIR}/VERSION' '${SHIELD_HOME}/VERSION'"
 run "install -m 0755 ${SRC_DIR}/collectors/*.sh '${SHIELD_HOME}/collectors/'"
 run "install -m 0755 ${SRC_DIR}/scanners/*.sh '${SHIELD_HOME}/scanners/'"
 run "install -m 0755 ${SRC_DIR}/actions/*.sh '${SHIELD_HOME}/actions/'"
+if compgen -G "$(dirname "${SRC_DIR}")/tools/*.sh" >/dev/null 2>&1; then
+  run "install -m 0755 $(dirname "${SRC_DIR}")/tools/*.sh '${SHIELD_HOME}/tools/'"
+fi
 
 # --- systemd service + timer (generated so --interval works) ----------------
 log "Installing systemd service + timer (interval: ${INTERVAL})"

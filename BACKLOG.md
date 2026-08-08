@@ -25,9 +25,11 @@ defence functions (see `docs/ARCHITECTURE.md`). `audit-software` logs findings h
 
 **Consume + feeds**
 - [ ] Netdata + CrowdSec install options in `install.sh` (flags)
-- [ ] Vuln matcher: dpkg → Ubuntu OVAL/USN + OSV (Composer); `dpkg --compare-versions`
-- [ ] Threat-intel matcher: Feodo (CC0) + Spamhaus DROP via radix trie; DB-IP Lite GeoIP
-- [ ] ntfy phone alerts (outbound only)
+- [x] Vuln matcher (`90-vulns.sh`): dpkg → bundle via `dpkg --compare-versions` + bats (real dpkg semantics)
+- [x] Threat-intel matcher (`80-threat-intel.sh`): outbound conns vs Feodo exact-IP bundle + bats
+- [x] Feed fetcher (`tools/fetch-feeds.sh`): Feodo (CC0) + DROP; **OVAL/OSV→vulns.tsv parser still TODO**
+- [x] ntfy phone alerts (`tools/notify.sh`, outbound only, inert until configured)
+- [ ] Brain-side: OVAL/USN + OSV parser → vulns.tsv; radix-trie CIDR match for DROP; DB-IP Lite GeoIP
 
 ## 🗂 By function (roadmap)
 ### Identify
