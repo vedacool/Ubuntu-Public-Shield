@@ -1,0 +1,22 @@
+# Ubuntu Public Shield — least-privilege sudoers (v2 hardening path).
+#
+# v1 runs the agent + actions as root via a systemd timer. The stronger model is
+# a dedicated, no-login `shield` user that the desktop app SSHes in as, allowed
+# to run ONLY the specific action scripts via sudo — never a blanket root shell.
+#
+# Install (once the scripts are vetted for your host):
+#   sudo useradd -r -m -s /usr/sbin/nologin shield   # or a login shell if the app SSHes in
+#   sudo cp agent/security/shield-sudoers.example /etc/sudoers.d/shield
+#   sudo chmod 0440 /etc/sudoers.d/shield
+#   sudo visudo -cf /etc/sudoers.d/shield             # validate before trusting it
+#
+# Each action is preview-by-default; --apply is the only mutating path.
+
+Cmnd_Alias SHIELD_READ  = /opt/shield/shield-agent, \
+                          /opt/shield/scanners/webshell-scan.sh
+Cmnd_Alias SHIELD_APPLY = /opt/shield/actions/apply-security-updates.sh, \
+                          /opt/shield/actions/rebaseline-drift.sh, \
+                          /opt/shield/actions/run-webshell-scan.sh, \
+                          /opt/shield/actions/run-lynis-audit.sh
+
+shield ALL=(root) NOPASSWD: SHIELD_READ, SHIELD_APPLY

@@ -15,7 +15,8 @@ defence functions (see `docs/ARCHITECTURE.md`). `audit-software` logs findings h
 - [x] `40-services.sh`, `50-lynis.sh` (reads last hardening score), `60-drift.sh` (baseline + diff of authorized_keys/cron/systemd/SUID)
 - [x] Webshell scanner v1 (heuristic: sinks + taint-proximity + obfuscation + recursive-decode) + bats tests
 - [ ] Webshell deepening: true AST/taint via PHP tokenizer; wire YARA-X community rules
-- [ ] Scoped `sudoers` for confirmed actions (replace run-as-root)
+- [x] Confirmed-action layer (preview→confirm→apply→log): apply-security-updates, rebaseline-drift, run-webshell-scan, run-lynis-audit + bats
+- [x] Scoped `sudoers` example (`agent/security/shield-sudoers.example`) — v2 wires the no-login `shield` user
 
 **Desktop app (Tauri)**
 - [ ] Add-server + fleet list; SSH connect; read `latest.json`
