@@ -45,7 +45,7 @@ mv -f "${tmp}" "${STATE_DIR}/latest.json"
 # Filenames are timestamped so they sort chronologically; prune all but the last 500.
 hist_dir="${STATE_DIR}/history"
 mkdir -p "${hist_dir}"
-cp -f "${STATE_DIR}/latest.json" "${hist_dir}/$(date -u +%Y%m%dT%H%M%SZ).json"
+cp -f "${STATE_DIR}/latest.json" "${hist_dir}/$(date -u +%Y%m%dT%H%M%S_%N)Z.json"
 find "${hist_dir}" -maxdepth 1 -name '*.json' -printf '%f\n' 2>/dev/null \
   | sort | head -n -500 | while read -r old; do rm -f "${hist_dir:?}/${old}"; done
 

@@ -1,16 +1,38 @@
 {
-  "_comment": "Seeded by software-start so audit-software's incremental mode works from day 1. lastAuditCommit=null means 'never audited' -> the first audit run is effectively a full sweep. The profile is shared with audit-software's Step 0 so it doesn't re-derive it.",
-  "lastAuditCommit": null,
-  "lastFullAuditCommit": null,
-  "verifiedGood": [],
+  "_comment": "Audit state for audit-software. lastFullAuditCommit is the tree the full sweep covered; the next incremental run diffs from lastAuditCommit and will re-check the post-audit fix commits.",
+  "lastAuditCommit": "3118c31c04ac207efa7a712f16ef3e4ab00a067e",
+  "lastFullAuditCommit": "3118c31c04ac207efa7a712f16ef3e4ab00a067e",
+  "lastFullAuditDate": "2026-08-08",
+  "verifiedGood": [
+    {
+      "area": "agent/collectors/*.sh — JSON validity, ss field parsing, IPv6 split, div-by-zero guards",
+      "verified": "full audit + tests/agent.bats + tests/matchers.bats on CI",
+      "commit": "3118c31"
+    },
+    {
+      "area": "agent/scanners/webshell-scan.sh — no execution of untrusted content; scoring incl. base64-in-sink after fix",
+      "verified": "security + correctness review; tests/agent.bats",
+      "commit": "post-audit"
+    },
+    {
+      "area": "desktop/src-tauri/src/lib.rs — run_action allowlist, ssh arg-injection guard, atomic servers.json",
+      "verified": "security + reliability review; #[cfg(test)] tests; cargo check --locked",
+      "commit": "post-audit"
+    },
+    {
+      "area": "dependency licenses (npm + cargo) — no copyleft; npm audit clean",
+      "verified": "code-quality/supply-chain review + npm audit --omit=dev",
+      "commit": "post-audit"
+    }
+  ],
   "profile": {
-    "type": "infra/IaC + script (server-hardening toolkit)",
-    "stack": "Bash/shell + Apache/MySQL/PHP config; bats (test), shellcheck (lint), gitleaks (secret-scan); Ansible possible later",
-    "dataSensitivity": "auth secrets / server credentials handled at runtime (DB roots, SSH keys, TLS); no end-user PII stored by the toolkit itself",
-    "exposure": "configures a public-internet LAMP server; the repo is a published/shared toolkit",
-    "deployModel": "self-hosted single box (runs on the target Ubuntu server); published toolkit",
-    "team": "small / owner-maintained",
-    "maturity": "will ship and be maintained"
+    "type": "desktop GUI (Tauri/Rust/Svelte) + CLI/agent (Bash) security tool; light data-collection pipeline",
+    "stack": "Bash + jq (agent); Rust/Tauri v2 (desktop backend); Svelte 5 + Vite 6 + TypeScript (frontend); npm + cargo; bats + shellcheck + gitleaks",
+    "dataSensitivity": "infrastructure security state (ports, packages, authorized_keys HASHES, webshell findings); no PII/health/payments; SSH auth stays in ssh-agent (app never holds keys)",
+    "exposure": "local desktop tool + per-server agent with NO listening port; connects outbound over SSH; source is public",
+    "deployModel": "self-install via install.sh on each server; desktop app built from source",
+    "team": "solo / non-expert operator",
+    "maturity": "pre-live-test; v1 feature-complete"
   },
   "seededBy": "software-start",
   "seededAtCommit": "0e6c85d5a19565bbcc9cf7e429884ca8c03c9437"

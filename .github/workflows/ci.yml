@@ -47,10 +47,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Frontend — install, type-check, build
+      - name: Frontend — install, audit, type-check, build
         working-directory: desktop
         run: |
           npm ci
+          npm audit --omit=dev --audit-level=high
           npm run check
           npm run build
       - name: Install Tauri system dependencies
@@ -61,9 +62,11 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: desktop/src-tauri
-      - name: Backend — cargo check
+      - name: Backend — check + test (locked build)
         working-directory: desktop/src-tauri
-        run: cargo check
+        run: |
+          cargo check --locked
+          cargo test --locked
 
   secret-scan:
     runs-on: ubuntu-latest

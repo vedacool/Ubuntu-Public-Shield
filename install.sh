@@ -78,6 +78,12 @@ if compgen -G "$(dirname "${SRC_DIR}")/tools/*.sh" >/dev/null 2>&1; then
 fi
 
 # --- systemd service + timer (generated so --interval works) ----------------
+if ! command -v systemctl >/dev/null 2>&1; then
+  log "systemctl not found — this host is not systemd."
+  log "Agent files are installed at ${SHIELD_HOME}. Add a cron entry to run"
+  log "${SHIELD_HOME}/shield-agent periodically (e.g. every 5 minutes)."
+  exit 1
+fi
 log "Installing systemd service + timer (interval: ${INTERVAL})"
 if ${DRY_RUN}; then
   log "DRY: would write /etc/systemd/system/shield-agent.{service,timer}"
@@ -92,6 +98,16 @@ Type=oneshot
 ExecStart=${SHIELD_HOME}/shield-agent
 Nice=10
 IOSchedulingClass=idle
+# Runs as root (collectors need to read dpkg, ss -p, /root, authorized_keys),
+# but sandboxed: read-only filesystem except the state dir, no new privileges.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=${STATE_DIR%/state}
+ProtectHome=read-only
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 EOF
 
   cat > /etc/systemd/system/shield-agent.timer <<EOF

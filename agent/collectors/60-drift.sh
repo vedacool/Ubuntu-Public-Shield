@@ -57,20 +57,23 @@ hash_str() { sha256sum | cut -d' ' -f1; }
   done
 } > "${tmp}"
 
-sort -u -o "${tmp}" "${tmp}"
+# Force C collation so the baseline and later runs sort identically regardless
+# of the ambient locale (timer vs shell) — otherwise comm reports false drift.
+LC_ALL=C sort -u -o "${tmp}" "${tmp}"
 watched="$(wc -l < "${tmp}" | tr -d ' ')"
 
-# First run, or explicit re-baseline requested.
+# First run, or explicit re-baseline requested. Write atomically (tmp + mv) so an
+# interrupted write can't leave a partial baseline that fakes drift next run.
 if [ ! -f "${snap_file}" ] || [ "${SHIELD_REBASELINE:-0}" = "1" ]; then
-  cp "${tmp}" "${snap_file}"
+  cp "${tmp}" "${snap_file}.new" && mv -f "${snap_file}.new" "${snap_file}"
   jq -n --argjson n "${watched}" \
     '{drift: {baseline_created: true, watched_items: $n,
               added: [], removed: [], added_count: 0, removed_count: 0}}'
   exit 0
 fi
 
-added="$(comm -13 "${snap_file}" "${tmp}" || true)"
-removed="$(comm -23 "${snap_file}" "${tmp}" || true)"
+added="$(LC_ALL=C comm -13 "${snap_file}" "${tmp}" || true)"
+removed="$(LC_ALL=C comm -23 "${snap_file}" "${tmp}" || true)"
 
 to_json_array() {
   if [ -z "$1" ]; then echo '[]'; else printf '%s\n' "$1" | jq -R . | jq -s .; fi

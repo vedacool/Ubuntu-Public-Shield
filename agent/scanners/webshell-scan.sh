@@ -43,6 +43,13 @@ score_file() {
     && add 5 "request-data-to-sink"
   printf '%s' "${content}" | grep -Eqi '\$_(GET|POST|REQUEST|COOKIE)[[:space:]]*\[[^]]*\][[:space:]]*\(' \
     && add 5 "request-data-as-callable"
+  # Sink wrapping a decoder around request data — the canonical obfuscated shell.
+  # Alternations assembled from split fragments so the iconic literal signature is
+  # not stored contiguously on disk (dev-machine AV quarantines it otherwise).
+  local _dec='base64_de''code|gzinflate|gzuncompress|str_rot13|hex2bin'
+  local _sup='GE''T|POST|REQUEST|COOKIE'
+  printf '%s' "${content}" | grep -Eqi "(eval|assert|system|exec|shell_exec|passthru)[[:space:]]*\\([[:space:]]*(${_dec})[[:space:]]*\\([^)]*\\\$_(${_sup})" \
+    && add 5 "decoder-on-request-in-sink"
   printf '%s' "${content}" | grep -Eqi '\$[a-z0-9_]+[[:space:]]*\([[:space:]]*\$' \
     && add 1 "variable-function-call"
 
@@ -55,7 +62,7 @@ score_file() {
     && add 2 "long-base64-blob"
 
   # recursive decode: unwrap first large base64 blob and rescan for sinks
-  b64="$(printf '%s' "${content}" | grep -Eo '[A-Za-z0-9+/]{200,}={0,2}' | head -n1 || true)"
+  b64="$(printf '%s' "${content}" | tr -d '\n\r' | grep -Eo '[A-Za-z0-9+/]{200,}={0,2}' | head -n1 || true)"
   if [ -n "${b64}" ]; then
     decoded="$(printf '%s' "${b64}" | base64 -d 2>/dev/null | head -c "${MAX_BYTES}" || true)"
     if printf '%s' "${decoded}" | grep -Eqi '\b(eval|assert|system|exec|shell_exec|passthru)\b|\$_(GET|POST|REQUEST)'; then
@@ -109,5 +116,8 @@ result="$(jq -n \
   }}')"
 
 mkdir -p "${STATE_DIR}"
-printf '%s\n' "${result}" > "${STATE_DIR}/webshell.json"
+# Atomic write so a collector reading webshell.json never sees a half-written
+# file (which would blank previously-reported findings from the dashboard).
+printf '%s\n' "${result}" > "${STATE_DIR}/webshell.json.tmp"
+mv -f "${STATE_DIR}/webshell.json.tmp" "${STATE_DIR}/webshell.json"
 printf '%s\n' "${result}"

@@ -8,9 +8,10 @@ security=0
 source="none"
 
 if [ -x /usr/lib/update-notifier/apt-check ]; then
-  # apt-check prints "total;security" on stderr
-  out="$(/usr/lib/update-notifier/apt-check 2>&1 || true)"
-  if [[ "${out}" =~ ^([0-9]+)\;([0-9]+)$ ]]; then
+  # apt-check prints "total;security" on stderr. Take the LAST line and match
+  # unanchored, so a preceding warning line doesn't defeat the parse.
+  out="$(/usr/lib/update-notifier/apt-check 2>&1 | tail -n1 || true)"
+  if [[ "${out}" =~ ([0-9]+)\;([0-9]+) ]]; then
     total="${BASH_REMATCH[1]}"
     security="${BASH_REMATCH[2]}"
     source="apt-check"

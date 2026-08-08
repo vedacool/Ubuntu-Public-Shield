@@ -3,6 +3,36 @@
 Single source of truth for tasks, findings, and the roadmap. Organised by the five
 defence functions (see `docs/ARCHITECTURE.md`). `audit-software` logs findings here.
 
+## 🔍 Full audit — 2026-08-08 (commit 3118c31)
+Verdict after fixes: **GO** (no open P0/P1). Fixed items verified in CI; open items are P2/P3 hardening.
+
+**Fixed (P1):**
+- [x] SSH argument injection via unvalidated `user`/`host` (`desktop/src-tauri/src/lib.rs`) — added `valid_field()` charset+leading-dash guard and `--` before target.
+- [x] `servers.json` non-atomic write + silent wipe on corruption (`lib.rs`) — atomic tmp+rename, corrupt-file backup instead of discard, `CONFIG_LOCK` mutex.
+- [x] Zero tests on the security-critical Rust backend — added `#[cfg(test)]` tests (allowlist, `valid_field`, banner parse).
+- [x] `Cargo.lock` not committed for a shipped binary — committed + CI builds `--locked`.
+
+**Fixed (P2):**
+- [x] Webshell false-negative: `eval(base64_decode($_POST[...]))` scored below threshold — added `decoder-on-request-in-sink` signal + newline-stripped blob detection (`webshell-scan.sh`).
+- [x] Non-atomic writes: drift snapshot (`60-drift.sh`) + `webshell.json` (`webshell-scan.sh`) — tmp+mv; `LC_ALL=C` for drift sort/comm.
+- [x] apply-updates preview/apply divergence + optimistic log (`apply-security-updates.sh`) — apply the previewed list, log outcome, `confirmed_count`.
+- [x] Agent timer ran root unsandboxed — added `NoNewPrivileges`/`ProtectSystem=strict`/`ReadWritePaths`/`ProtectHome=read-only`/etc. (`install.sh`).
+- [x] `apt-check` parse brittle (`30-updates.sh`); no `systemctl` presence check (`install.sh`); SSH stdout banner breaks JSON parse (`lib.rs parse_json_lenient`).
+- [x] Frontend a11y/UX: input labels, visible focus, tile sub-text + borderline contrast, non-colour severity cue (WATCH/ALERT), accessible modal (role/aria/Esc/backdrop/restore-focus/autofocus), in-modal apply error, top-level load error, `signals ?? []` guard, composite finding key, remove-button label.
+- [x] Action allowlist drift across 4 files — CI test `tests/action-sync.bats` enforces parity.
+- [x] STACK.md version drift; Dependabot npm+cargo; Cargo.toml placeholder metadata.
+
+**Open (P2) — schedule:**
+- [ ] Webview **CSP is `null`** (`tauri.conf.json`) — set a restrictive CSP; needs live-test verification that it doesn't break the SvelteKit bundle (Svelte auto-escapes, so this is defense-in-depth).
+- [ ] SSOT: JSON-array helper reimplemented 3× (`agent/actions/lib.sh` vs `60-drift.sh` `to_json_array` vs inline in `40-services.sh`/`webshell-scan.sh`) — promote to shared `agent/lib.sh`, align empty-strip behaviour.
+
+**Open (P3) — polish:**
+- [ ] SSH `StrictHostKeyChecking=accept-new` (TOFU) — offer a strict mode + surface fingerprint on first add.
+- [ ] `cargo audit`/`cargo-deny` license+advisory gate in CI.
+- [ ] Full modal focus-trap; sidebar min-width/reflow at high zoom.
+- [ ] `30-updates.sh` fallback under-reports security updates copied to `-updates` suite (apt-check primary path is authoritative).
+- [ ] `tools/fetch-feeds.sh` feed integrity verification (currently TLS-only).
+
 ## 🚩 Manual follow-ups
 - [ ] On the Pi: run `ls /sys/kernel/btf/vmlinux` — decides whether v2 eBPF works without a kernel rebuild.
 - [ ] Verify LMD version (1.6.6 vs 2.0.1) before pinning.

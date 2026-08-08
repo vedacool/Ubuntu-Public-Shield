@@ -30,18 +30,19 @@ if [ "${mode}" = "preview" ]; then
 fi
 
 # --apply
-log_action "apply-security-updates" "apply" "upgrading ${count} security package(s)"
+# Apply EXACTLY the packages the preview reported (same computed list), so the
+# operator gets what they confirmed — not whatever unattended-upgrade's own
+# config happens to include. Refresh lists first, then upgrade only those pkgs.
+log_action "apply-security-updates" "apply" "start: ${count} security package(s)"
 export DEBIAN_FRONTEND=noninteractive
 ok=true
-if command -v unattended-upgrade >/dev/null 2>&1; then
-  unattended-upgrade -v >/dev/null 2>&1 || ok=false
-else
-  apt-get update -y >/dev/null 2>&1 || true
-  if [ "${count}" -gt 0 ]; then
-    # shellcheck disable=SC2086  # intentional word-splitting of the package list
-    apt-get -y --only-upgrade install ${pkgs} >/dev/null 2>&1 || ok=false
-  fi
+apt-get update -y >/dev/null 2>&1 || true
+if [ "${count}" -gt 0 ]; then
+  # shellcheck disable=SC2086  # intentional word-splitting of the package list
+  apt-get -y --only-upgrade install ${pkgs} >/dev/null 2>&1 || ok=false
 fi
+# Log the OUTCOME (the earlier line only recorded intent).
+log_action "apply-security-updates" "apply" "done: ok=${ok} count=${count}"
 
 jq -n --argjson count "${count}" --argjson ok "${ok}" \
-  '{action:"apply-security-updates", mode:"apply", upgraded_count:$count, ok:$ok}'
+  '{action:"apply-security-updates", mode:"apply", confirmed_count:$count, ok:$ok}'

@@ -17,6 +17,8 @@
 	let pending = $state<{ action: ActionName; label: string; preview: unknown } | null>(null);
 	let actionBusy = $state(false);
 	let actionResult = $state<string | null>(null);
+	let modalError = $state<string | null>(null);
+	let lastFocus: HTMLElement | null = null;
 
 	const ACTIONS: { action: ActionName; label: string }[] = [
 		{ action: 'apply-security-updates.sh', label: 'Apply security updates' },
@@ -76,8 +78,10 @@
 
 	async function openAction(action: ActionName, label: string) {
 		if (!selected) return;
+		lastFocus = (document.activeElement as HTMLElement) ?? null;
 		actionBusy = true;
 		actionResult = null;
+		modalError = null;
 		try {
 			const preview = await runAction(selected, action, false);
 			pending = { action, label, preview };
@@ -88,19 +92,35 @@
 		}
 	}
 
+	function closeModal() {
+		pending = null;
+		modalError = null;
+		lastFocus?.focus(); // restore focus to the button that opened the modal
+	}
+
 	async function confirmAction() {
 		if (!selected || !pending) return;
 		actionBusy = true;
+		modalError = null;
 		try {
 			const res = await runAction(selected, pending.action, true);
 			actionResult = `${pending.label}: ${JSON.stringify(res)}`;
-			pending = null;
+			closeModal();
 			await select(selected); // refresh snap after applying
 		} catch (e) {
-			error = String(e);
+			modalError = String(e); // show inside the modal, not behind it
 		} finally {
 			actionBusy = false;
 		}
+	}
+
+	function onKey(e: KeyboardEvent) {
+		if (e.key === 'Escape' && pending) closeModal();
+	}
+
+	// Svelte action: focus a node when it mounts (used for the modal's first control).
+	function focusOnMount(node: HTMLElement) {
+		node.focus();
 	}
 
 	function sev(bad: boolean, warn = false): string {
@@ -115,6 +135,8 @@
 	}
 </script>
 
+<svelte:window onkeydown={onKey} />
+
 <div class="app">
 	<aside class="sidebar">
 		<div class="brand">🛡️ <span>Ubuntu Public Shield</span></div>
@@ -125,13 +147,21 @@
 
 		{#if showAdd}
 			<form class="add-form" onsubmit={submitAdd}>
-				<input placeholder="name (e.g. web01)" bind:value={form.name} />
-				<input placeholder="host / IP" bind:value={form.host} />
-				<input placeholder="ssh user" bind:value={form.user} />
-				<input type="number" placeholder="port" bind:value={form.port} />
+				<label class="sr-only" for="f-name">Server name</label>
+				<input id="f-name" placeholder="name (e.g. web01)" bind:value={form.name} required />
+				<label class="sr-only" for="f-host">Host or IP</label>
+				<input id="f-host" placeholder="host / IP" bind:value={form.host} required />
+				<label class="sr-only" for="f-user">SSH user</label>
+				<input id="f-user" placeholder="ssh user" bind:value={form.user} required />
+				<label class="sr-only" for="f-port">SSH port</label>
+				<input id="f-port" type="number" placeholder="port" bind:value={form.port} />
 				<button type="submit">Save</button>
 				{#if addError}<p class="err">{addError}</p>{/if}
 			</form>
+		{/if}
+
+		{#if error && !selected}
+			<p class="err" role="alert">{error}</p>
 		{/if}
 
 		<ul class="fleet">
@@ -141,7 +171,7 @@
 						<strong>{s.name}</strong>
 						<span>{s.user}@{s.host}</span>
 					</button>
-					<button class="rm" title="Remove" onclick={() => remove(s.name)}>×</button>
+					<button class="rm" aria-label="Remove {s.name}" title="Remove {s.name}" onclick={() => remove(s.name)}>×</button>
 				</li>
 			{:else}
 				<li class="empty">No servers yet. Add one above.</li>
@@ -270,10 +300,10 @@
 					<section class="list">
 						<h2>Webshell findings</h2>
 						<ul>
-							{#each snap.webshell?.findings ?? [] as f (f.file)}
+							{#each snap.webshell?.findings ?? [] as f (f.file + f.level + f.score)}
 								<li>
 									<span class="badge {f.level === 'high' ? 'bad' : 'warn'}">{f.level}</span>
-									<code>{f.file}</code> — score {f.score} ({f.signals.join(', ')})
+									<code>{f.file}</code> — score {f.score} ({(f.signals ?? []).join(', ')})
 								</li>
 							{/each}
 						</ul>
@@ -311,13 +341,29 @@
 </div>
 
 {#if pending}
-	<div class="modal-backdrop">
-		<div class="modal">
-			<h2>{pending.label}</h2>
+	<div
+		class="modal-backdrop"
+		role="button"
+		tabindex="-1"
+		aria-label="Close dialog"
+		onclick={closeModal}
+		onkeydown={() => {}}
+	>
+		<div
+			class="modal"
+			role="dialog"
+			aria-modal="true"
+			aria-labelledby="modal-title"
+			onclick={(e) => e.stopPropagation()}
+			onkeydown={() => {}}
+			tabindex="-1"
+		>
+			<h2 id="modal-title">{pending.label}</h2>
 			<p>Preview of what will happen (nothing has changed yet):</p>
 			<pre>{JSON.stringify(pending.preview, null, 2)}</pre>
+			{#if modalError}<p class="err" role="alert">{modalError}</p>{/if}
 			<div class="modal-actions">
-				<button class="ghost" onclick={() => (pending = null)}>Cancel</button>
+				<button class="ghost" use:focusOnMount onclick={closeModal}>Cancel</button>
 				<button class="danger" disabled={actionBusy} onclick={confirmAction}>
 					{actionBusy ? 'Applying…' : 'Confirm & apply'}
 				</button>
@@ -415,13 +461,13 @@
 	.fleet .rm {
 		background: none;
 		border: none;
-		color: #6b7280;
+		color: #565f6b;
 		cursor: pointer;
 		font-size: 18px;
 		padding: 0 8px;
 	}
 	.fleet .empty {
-		color: #6b7280;
+		color: #565f6b;
 		font-size: 13px;
 		padding: 8px;
 	}
@@ -430,7 +476,7 @@
 		overflow-y: auto;
 	}
 	.placeholder {
-		color: #6b7280;
+		color: #565f6b;
 		margin-top: 15vh;
 		text-align: center;
 	}
@@ -443,7 +489,7 @@
 		margin: 0;
 	}
 	.detail-head .sub {
-		color: #6b7280;
+		color: #565f6b;
 		font-size: 13px;
 		margin: 4px 0 0;
 	}
@@ -461,7 +507,23 @@
 		gap: 12px;
 		margin: 20px 0;
 	}
+	.sr-only {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip: rect(0, 0, 0, 0);
+		white-space: nowrap;
+		border: 0;
+	}
+	:global(:focus-visible) {
+		outline: 2px solid #3b82f6;
+		outline-offset: 2px;
+	}
 	.tile {
+		position: relative;
 		background: white;
 		border-radius: 10px;
 		padding: 14px;
@@ -469,6 +531,24 @@
 		flex-direction: column;
 		gap: 2px;
 		border-left: 4px solid #d1d5db;
+	}
+	/* Non-colour severity cue (WCAG 1.4.1) — text label, not colour alone. */
+	.tile.warn::after,
+	.tile.bad::after {
+		position: absolute;
+		top: 10px;
+		right: 12px;
+		font-size: 10px;
+		font-weight: 700;
+		letter-spacing: 0.03em;
+	}
+	.tile.warn::after {
+		content: 'WATCH';
+		color: #b45309;
+	}
+	.tile.bad::after {
+		content: 'ALERT';
+		color: #b91c1c;
 	}
 	.tile .n {
 		font-size: 26px;
@@ -480,7 +560,7 @@
 	}
 	.tile .s {
 		font-size: 11px;
-		color: #9ca3af;
+		color: #5b6472;
 	}
 	.tile.ok {
 		border-left-color: #22c55e;
@@ -530,7 +610,7 @@
 		background: #f59e0b;
 	}
 	.cve {
-		color: #6b7280;
+		color: #565f6b;
 		font-size: 12px;
 	}
 	code {
@@ -560,7 +640,7 @@
 		font-size: 13px;
 	}
 	.loading {
-		color: #6b7280;
+		color: #565f6b;
 	}
 	.modal-backdrop {
 		position: fixed;

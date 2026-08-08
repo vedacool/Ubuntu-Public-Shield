@@ -5,18 +5,26 @@ tools** (grow one at a time). Adding a feature = add a tool + a collector, never
 re-architecture.
 
 ## Product stack
-| Layer | Tech | Pin |
-|---|---|---|
-| Desktop shell | Tauri v2 | 2.11.x (core 2.11.5) |
-| UI framework | Svelte + Vite | Svelte 5.56.x · Vite 8.2.x |
-| Charts | uPlot | 1.6.32 (stable but dormant — accepted) |
-| Runtime (build) | Node.js | 24 LTS |
-| Core lang | Rust / Cargo | 1.97.x (never < 1.96.1 — CVE patch) |
-| SSH transport | OS OpenSSH via ssh-agent | (app never holds raw keys) |
-| PC storage | SQLite (rusqlite) | rusqlite 0.40.x |
-| Secrets on PC | OS keychain (`keyring` crate) | 4.1.x (v4 breaking re-arch) |
-| Alerts | ntfy | 2.26.x |
-| eBPF (v2) | Rust `aya` | aya 0.13.x / aya-ebpf 0.2.x |
+Two columns: **Pin** = target; **Now** = what's actually in the repo today
+(from `desktop/package.json` + `desktop/src-tauri/Cargo.toml` + CI).
+
+| Layer | Tech | Pin (target) | Now (in repo) |
+|---|---|---|---|
+| Desktop shell | Tauri v2 | 2.11.x | `tauri = "2"` (Tauri v2 template) |
+| UI framework | Svelte + Vite | Svelte 5.56 · Vite 8.2 | Svelte 5.56 · **Vite 6.4** (Tauri template default) |
+| Runtime (build) | Node.js | 24 LTS | **22** (CI) / 20.19 (dev) |
+| Core lang | Rust / Cargo | 1.97.x (never < 1.96.1) | stable (CI `dtolnay/rust-toolchain@stable`) |
+| SSH transport | OS OpenSSH via ssh-agent | app never holds raw keys | ✅ shells out to `ssh` |
+| Alerts | ntfy | 2.26.x | ✅ `tools/notify.sh` (outbound) |
+| **Planned (not yet in repo)** | | | |
+| Charts | uPlot | 1.6.32 | planned |
+| PC storage | SQLite (rusqlite) | rusqlite 0.40.x | planned (v1 uses `servers.json`) |
+| Secrets on PC | OS keychain (`keyring`) | 4.1.x | planned |
+| eBPF (v2) | Rust `aya` | 0.13.x | v2 |
+
+> Vite is a major behind the pin because the official Tauri v2 template ships
+> Vite 6; bump to 8 is a tracked follow-up (BACKLOG). SQLite/uPlot/keyring/aya are
+> roadmap items, not current dependencies.
 
 ## Orchestrated tools
 | Tool | Pin | Role |
