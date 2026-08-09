@@ -27,8 +27,11 @@ export interface VulnEntry {
 	package: string;
 	installed: string;
 	fixed: string;
-	cve: string;
-	priority: string;
+	candidate?: string;
+	status?: 'fix_available' | 'fix_pending';
+	cves?: string[];
+	cve_count?: number;
+	binaries?: string[];
 }
 
 export interface ShieldState {
@@ -67,7 +70,15 @@ export interface ShieldState {
 		findings?: WebshellFinding[];
 	};
 	threat_intel?: { feed_present?: boolean; match_count?: number; matches?: { ip: string }[] };
-	vulns?: { feed_present?: boolean; vulnerable_count?: number; vulnerable?: VulnEntry[] };
+	vulns?: {
+		feed_present?: boolean;
+		checked?: number;
+		vulnerable_count?: number;
+		cve_count?: number;
+		fix_available_count?: number;
+		fix_pending_count?: number;
+		vulnerable?: VulnEntry[];
+	};
 	file_events?: {
 		watching?: boolean;
 		total?: number;

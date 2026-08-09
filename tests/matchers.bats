@@ -34,7 +34,12 @@ setup() {
   run bash "${REPO}/agent/collectors/90-vulns.sh"
   [ "$status" -eq 0 ]
   echo "$output" | jq -e '.vulns.vulnerable | any(.package == "bash")' >/dev/null
-  echo "$output" | jq -e '.vulns.vulnerable[] | select(.package=="bash") | .cve == "CVE-TEST-0001"' >/dev/null
+  # CVEs are now grouped per-package into a .cves array
+  echo "$output" | jq -e '.vulns.vulnerable[] | select(.package=="bash") | .cves | any(. == "CVE-TEST-0001")' >/dev/null
+  # apt-candidate cross-check classifies every finding as available/pending
+  echo "$output" | jq -e '.vulns.vulnerable[] | select(.package=="bash") | (.status=="fix_available" or .status=="fix_pending")' >/dev/null
+  # counts are consistent: available + pending == vulnerable packages
+  echo "$output" | jq -e '.vulns.cve_count >= 1 and (.vulns.fix_available_count + .vulns.fix_pending_count == .vulns.vulnerable_count)' >/dev/null
 }
 
 @test "vulns: does NOT flag when installed version already meets the fix" {

@@ -1,51 +1,108 @@
 #!/usr/bin/env bash
-# Collector: match installed dpkg packages against a vulnerability bundle using
-# Debian version semantics (dpkg --compare-versions — never a hand-rolled
-# compare). Bundle is backport-correct (built from Ubuntu OVAL/USN + OSV by the
-# brain), so it does not raise NVD-style false positives.
-# Bundle: TSV at ${SHIELD_FEED_DIR}/vulns.tsv with columns:
-#   package <TAB> fixed_version <TAB> cve <TAB> priority
-# A package is vulnerable if installed AND installed_version << fixed_version.
-# Emits: { "vulns": { feed_present, checked, vulnerable_count, vulnerable[] } }
+# Collector: match installed packages against the OSV-built vulnerability bundle
+# (vulns.tsv: source_package<TAB>fixed_version<TAB>cve<TAB>priority) using dpkg
+# version semantics — never a hand-rolled compare.
+#
+# A source package is vulnerable if an installed binary built from it has
+# source_version << fixed_version. We group findings BY PACKAGE (not per-CVE) and
+# cross-check the apt CANDIDATE version so we can tell:
+#   fix_available — candidate >= fixed  (an update you can apply right now)
+#   fix_pending   — candidate <  fixed  (known-vulnerable but no installable fix
+#                                         yet, e.g. not published to your repo)
+# We also list the installed binary packages from that source, since the source
+# name (e.g. "bind9") may not itself be installed — only its libs.
+#
+# Emits: { "vulns": { feed_present, checked, vulnerable_count (packages),
+#   cve_count, fix_available_count, fix_pending_count, vulnerable[] } }
 set -euo pipefail
 
 FEED="${SHIELD_FEED_DIR:-/var/lib/shield/feeds}/vulns.tsv"
 
+empty='{"vulns": {"feed_present": false, "checked": 0, "vulnerable_count": 0, "cve_count": 0, "fix_available_count": 0, "fix_pending_count": 0, "vulnerable": []}}'
 if [ ! -r "${FEED}" ] || ! command -v dpkg-query >/dev/null 2>&1; then
-  echo '{"vulns": {"feed_present": false, "checked": 0, "vulnerable_count": 0, "vulnerable": []}}'
+  echo "${empty}"
   exit 0
 fi
 
-declare -A inst
-# Enumerate by SOURCE package (+ source version) to align with the OSV feed,
-# which is keyed by source package. Many binaries map to one source; dedup.
-while IFS=' ' read -r p v; do
-  [ -n "${p}" ] || continue
-  [ -n "${v}" ] || continue
-  inst["${p}"]="${v}"
-done < <(dpkg-query -W -f='${source:Package} ${source:Version}\n' 2>/dev/null | sort -u || true)
+# Installed: source version + installed binaries, keyed by source package.
+declare -A srcver bins
+while IFS=$'\t' read -r bin src sver; do
+  [ -n "${src}" ] && [ -n "${sver}" ] || continue
+  srcver["${src}"]="${sver}"
+  bins["${src}"]="${bins[${src}]:-}${bin} "
+done < <(dpkg-query -W -f='${Package}\t${source:Package}\t${source:Version}\n' 2>/dev/null || true)
 
-vuln=()
+# Group advisories by source package where installed << fixed.
+declare -A vfixed vcves
 checked=0
-while IFS=$'\t' read -r pkg fixed cve prio; do
+while IFS=$'\t' read -r pkg fixed cve _prio; do
   [ -n "${pkg}" ] || continue
   case "${pkg}" in \#*) continue ;; esac
-  iv="${inst[${pkg}]:-}"
-  [ -n "${iv}" ] || continue
   [ -n "${fixed}" ] || continue
+  iv="${srcver[${pkg}]:-}"
+  [ -n "${iv}" ] || continue
   checked=$((checked + 1))
   if dpkg --compare-versions "${iv}" lt "${fixed}" 2>/dev/null; then
-    vuln+=("$(jq -n \
-      --arg p "${pkg}" --arg i "${iv}" --arg f "${fixed}" \
-      --arg c "${cve:-}" --arg pr "${prio:-unknown}" \
-      '{package:$p, installed:$i, fixed:$f, cve:$c, priority:$pr}')")
+    cur="${vfixed[${pkg}]:-}"
+    if [ -z "${cur}" ] || dpkg --compare-versions "${fixed}" gt "${cur}" 2>/dev/null; then
+      vfixed["${pkg}"]="${fixed}"
+    fi
+    [ -n "${cve}" ] && vcves["${pkg}"]="${vcves[${pkg}]:-}${cve} "
   fi
 done < "${FEED}"
 
-if [ "${#vuln[@]}" -eq 0 ]; then vuln_json='[]'; else vuln_json="$(printf '%s\n' "${vuln[@]}" | jq -s .)"; fi
+apt_candidate() { # <binary> -> candidate version (may be empty)
+  command -v apt-cache >/dev/null 2>&1 || return 0
+  apt-cache policy "$1" 2>/dev/null | awk '/Candidate:/{print $2; exit}'
+}
+
+entries=()
+fix_avail=0
+fix_pending=0
+cve_total=0
+for pkg in "${!vfixed[@]}"; do
+  fixed="${vfixed[${pkg}]}"
+  iv="${srcver[${pkg}]}"
+
+  mapfile -t cvearr < <(printf '%s' "${vcves[${pkg}]:-}" | tr ' ' '\n' | grep -v '^$' | sort -u)
+  mapfile -t binarr < <(printf '%s' "${bins[${pkg}]:-}" | tr ' ' '\n' | grep -v '^$' | sort -u)
+  cve_total=$((cve_total + ${#cvearr[@]}))
+
+  cand=""
+  [ "${#binarr[@]}" -gt 0 ] && cand="$(apt_candidate "${binarr[0]}")"
+  if [ -n "${cand}" ] && dpkg --compare-versions "${cand}" ge "${fixed}" 2>/dev/null; then
+    status="fix_available"
+    fix_avail=$((fix_avail + 1))
+  else
+    status="fix_pending"
+    fix_pending=$((fix_pending + 1))
+  fi
+
+  if [ "${#cvearr[@]}" -eq 0 ]; then cves_json='[]'; else cves_json="$(printf '%s\n' "${cvearr[@]}" | jq -R . | jq -s .)"; fi
+  if [ "${#binarr[@]}" -eq 0 ]; then bins_json='[]'; else bins_json="$(printf '%s\n' "${binarr[@]}" | jq -R . | jq -s .)"; fi
+
+  entries+=("$(jq -n \
+    --arg p "${pkg}" --arg i "${iv}" --arg f "${fixed}" \
+    --arg cand "${cand}" --arg st "${status}" \
+    --argjson cves "${cves_json}" --argjson bins "${bins_json}" \
+    '{package:$p, installed:$i, fixed:$f, candidate:$cand, status:$st,
+      cves:$cves, cve_count:($cves|length), binaries:$bins}')")
+done
+
+if [ "${#entries[@]}" -eq 0 ]; then
+  ent_json='[]'
+else
+  # fix_available first, then by most CVEs
+  ent_json="$(printf '%s\n' "${entries[@]}" | jq -s 'sort_by([(.status != "fix_available"), (-.cve_count)])')"
+fi
 
 jq -n \
   --argjson checked "${checked}" \
-  --argjson vulnerable "${vuln_json}" \
+  --argjson vuln "${ent_json}" \
+  --argjson cve_total "${cve_total}" \
+  --argjson fa "${fix_avail}" \
+  --argjson fp "${fix_pending}" \
   '{vulns: {feed_present: true, checked: $checked,
-            vulnerable_count: ($vulnerable | length), vulnerable: $vulnerable}}'
+            vulnerable_count: ($vuln | length), cve_count: $cve_total,
+            fix_available_count: $fa, fix_pending_count: $fp,
+            vulnerable: $vuln}}'

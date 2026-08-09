@@ -253,10 +253,19 @@
 						<span class="s">{snap.threat_intel?.feed_present ? 'feed active' : 'no feed'}</span>
 					</div>
 
-					<div class="tile {sev((snap.vulns?.vulnerable_count ?? 0) > 0)}">
+					<div
+						class="tile {sev(
+							(snap.vulns?.fix_available_count ?? 0) > 0,
+							(snap.vulns?.vulnerable_count ?? 0) > 0
+						)}"
+					>
 						<span class="n">{snap.vulns?.vulnerable_count ?? 0}</span>
 						<span class="l">vulnerable packages</span>
-						<span class="s">{snap.vulns?.feed_present ? 'feed active' : 'no feed'}</span>
+						<span class="s">
+							{snap.vulns?.feed_present
+								? `${snap.vulns?.cve_count ?? 0} CVEs · ${snap.vulns?.fix_available_count ?? 0} fixable`
+								: 'no feed'}
+						</span>
 					</div>
 
 					<div class="tile {sev((snap.services?.failed_count ?? 0) > 0)}">
@@ -333,9 +342,9 @@
 						<ul>
 							{#each snap.vulns?.vulnerable ?? [] as v, i (i)}
 								<li>
-									<span class="badge warn">{v.priority}</span>
+									<span class="badge {v.status === 'fix_available' ? 'bad' : 'warn'}">{v.status === 'fix_available' ? 'fix available' : 'fix pending'}</span>
 									<code>{v.package}</code> {v.installed} → {v.fixed}
-									<span class="cve">{v.cve}</span>
+									<span class="cve">{v.cve_count ?? v.cves?.length ?? 0} CVEs{v.candidate ? ` · repo has ${v.candidate}` : ''}</span>
 								</li>
 							{/each}
 						</ul>
