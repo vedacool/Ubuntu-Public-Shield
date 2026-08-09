@@ -27,7 +27,7 @@ fi
 # Installed: source version + installed binaries, keyed by source package.
 declare -A srcver bins
 while IFS=$'\t' read -r bin src sver; do
-  [ -n "${src}" ] && [ -n "${sver}" ] || continue
+  if [ -z "${src}" ] || [ -z "${sver}" ]; then continue; fi
   srcver["${src}"]="${sver}"
   bins["${src}"]="${bins[${src}]:-}${bin} "
 done < <(dpkg-query -W -f='${Package}\t${source:Package}\t${source:Version}\n' 2>/dev/null || true)
