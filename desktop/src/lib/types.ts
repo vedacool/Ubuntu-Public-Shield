@@ -14,6 +14,33 @@ export interface PortEntry {
 	port: number | string;
 	process?: string;
 	public: boolean;
+	reach?: 'local' | 'lan' | 'internet';
+	risk?: 'none' | 'watch' | 'high';
+	risk_note?: string | null;
+}
+
+export interface RiskyPort {
+	proto: string;
+	port: number | string;
+	process?: string;
+	reach?: string;
+	risk?: string;
+	risk_note?: string | null;
+}
+
+export interface Exposure {
+	host_ip?: string;
+	host_exposure?: 'nat' | 'public' | 'unknown';
+	internet_reachable_count?: number;
+	lan_reachable_count?: number;
+	risky?: RiskyPort[];
+}
+
+export interface DriftItem {
+	fp: string;
+	kind: string; // authkey | cron | usercron | unit | suid
+	target: string;
+	status: 'new' | 'flagged';
 }
 
 export interface WebshellFinding {
@@ -48,6 +75,7 @@ export interface ShieldState {
 	};
 	ports?: PortEntry[];
 	ports_public_count?: number;
+	exposure?: Exposure;
 	updates?: { total: number; security: number; source: string };
 	services?: {
 		running_count?: number;
@@ -62,6 +90,8 @@ export interface ShieldState {
 		removed?: string[];
 		added_count?: number;
 		removed_count?: number;
+		added_items?: DriftItem[];
+		flagged_count?: number;
 	};
 	webshell?: {
 		scanned?: number;

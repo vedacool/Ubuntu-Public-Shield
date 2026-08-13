@@ -12,3 +12,10 @@ export const fetchState = (name: string) => invoke<ShieldState>('fetch_state', {
 
 export const runAction = (name: string, action: ActionName, apply: boolean) =>
 	invoke<Record<string, unknown>>('run_action', { name, action, apply });
+
+export const acknowledgeDrift = (
+	name: string,
+	fp: string,
+	verdict: 'mine' | 'suspicious',
+	apply: boolean
+) => invoke<Record<string, unknown>>('acknowledge_drift', { name, fp, verdict, apply });

@@ -50,6 +50,22 @@ fn valid_field(s: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_' | ':'))
 }
 
+// Wrap a value as a single-quoted shell token (escaping embedded single quotes)
+// so it passes through the remote shell as one literal argument, never parsed.
+fn sh_squote(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('\'');
+    for c in s.chars() {
+        if c == '\'' {
+            out.push_str("'\\''");
+        } else {
+            out.push(c);
+        }
+    }
+    out.push('\'');
+    out
+}
+
 fn config_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
@@ -185,6 +201,37 @@ fn run_action(
     parse_json_lenient(&out).map_err(|e| format!("action did not return valid JSON: {e}"))
 }
 
+// Acknowledge one persistence-drift item: confirm it as yours (folds into the
+// trusted baseline so it stops alarming) or flag it suspicious (stays visible,
+// logged). The fingerprint is validated to a known kind and single-quoted for
+// the remote shell; verdict is allowlisted. Replaces blanket accept-all.
+#[tauri::command]
+fn acknowledge_drift(
+    app: tauri::AppHandle,
+    name: String,
+    fp: String,
+    verdict: String,
+    apply: bool,
+) -> Result<serde_json::Value, String> {
+    if verdict != "mine" && verdict != "suspicious" {
+        return Err("verdict must be 'mine' or 'suspicious'".into());
+    }
+    const KINDS: &[&str] = &["authkey:", "cron:", "usercron:", "unit:", "suid:"];
+    if !KINDS.iter().any(|k| fp.starts_with(k)) {
+        return Err("invalid drift fingerprint".into());
+    }
+    let server = find_server(&app, &name)?;
+    let flag = if apply { "--apply" } else { "--preview" };
+    let cmd = format!(
+        "sudo -n /opt/shield/actions/acknowledge-drift.sh --fp {} --verdict {} {}",
+        sh_squote(&fp),
+        verdict,
+        flag
+    );
+    let out = ssh_run(&server, &cmd)?;
+    parse_json_lenient(&out).map_err(|e| format!("action did not return valid JSON: {e}"))
+}
+
 // Some SSH sessions prepend a shell/MOTD banner to stdout even for a single
 // remote command. Extract the JSON object (first '{' … last '}') before parsing
 // so a benign banner doesn't break an otherwise-valid document.
@@ -205,7 +252,8 @@ pub fn run() {
             add_server,
             remove_server,
             fetch_state,
-            run_action
+            run_action,
+            acknowledge_drift
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -220,6 +268,16 @@ mod tests {
         assert!(!ACTIONS.contains(&"rm-rf.sh"));
         assert!(!ACTIONS.contains(&"apply-security-updates.sh; rm -rf /"));
         assert!(ACTIONS.contains(&"apply-security-updates.sh"));
+    }
+
+    #[test]
+    fn sh_squote_neutralizes_shell_metachars() {
+        assert_eq!(sh_squote("authkey:/a/b:hash"), "'authkey:/a/b:hash'");
+        // an embedded single quote is closed, escaped, and reopened
+        assert_eq!(sh_squote("a'b"), "'a'\\''b'");
+        // a command-injection attempt stays inside the quotes as literal text
+        assert_eq!(sh_squote("x; rm -rf /"), "'x; rm -rf /'");
+        assert_eq!(sh_squote("$(id)"), "'$(id)'");
     }
 
     #[test]
