@@ -67,6 +67,12 @@ fi
 mkdir -p "${BASELINE_DIR}" "${STATE_DIR}"
 printf '%s\t%s\t%s\n' "$(date -u +%FT%TZ)" "${verdict}" "${fp}" >> "${LOG}"
 
+# Regenerate the state document (async) so the dashboard reflects this on its
+# next read instead of waiting for the 5-minute timer.
+if command -v systemctl >/dev/null 2>&1; then
+  systemctl start --no-block shield-agent.service >/dev/null 2>&1 || true
+fi
+
 if [ "${verdict}" = mine ]; then
   { [ -f "${SNAP}" ] && cat "${SNAP}"; printf '%s\n' "${fp}"; } | LC_ALL=C sort -u > "${SNAP}.new"
   mv -f "${SNAP}.new" "${SNAP}"

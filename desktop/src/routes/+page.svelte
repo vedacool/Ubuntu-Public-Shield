@@ -161,13 +161,24 @@
 	}
 
 	// ---- drift acknowledge (direct, informed, reversible) ------------------
+	// The agent regenerates latest.json only on its timer, so we update the view
+	// optimistically (and the action triggers a fresh collection server-side).
+	// We do NOT re-read latest.json here — it would still hold the pre-ack list.
 	async function ack(fp: string, verdict: 'mine' | 'suspicious') {
-		if (!selected || busyFp) return;
+		if (!selected || busyFp || !snap?.drift) return;
 		busyFp = fp;
+		const items = snap.drift.added_items ?? [];
+		const backup = items.slice();
+		if (verdict === 'mine') {
+			snap.drift.added_items = items.filter((d) => d.fp !== fp);
+		} else {
+			snap.drift.added_items = items.map((d) => (d.fp === fp ? { ...d, status: 'flagged' } : d));
+			snap.drift.flagged_count = (snap.drift.flagged_count ?? 0) + 1;
+		}
 		try {
 			await acknowledgeDrift(selected, fp, verdict, true);
-			await select(selected); // refresh so the item reflects its new state
 		} catch (e) {
+			if (snap?.drift) snap.drift.added_items = backup; // revert on failure
 			error = String(e);
 		} finally {
 			busyFp = null;
