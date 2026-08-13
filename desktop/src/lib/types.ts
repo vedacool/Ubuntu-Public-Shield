@@ -120,6 +120,5 @@ export interface ShieldState {
 
 export type ActionName =
 	| 'apply-security-updates.sh'
-	| 'rebaseline-drift.sh'
 	| 'run-webshell-scan.sh'
 	| 'run-lynis-audit.sh';

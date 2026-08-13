@@ -14,9 +14,12 @@
 
 Cmnd_Alias SHIELD_READ  = /opt/shield/shield-agent, \
                           /opt/shield/scanners/webshell-scan.sh
+# Button actions (run via the desktop's run_action, preview-by-default) plus the
+# per-item acknowledge action (its own validated command). acknowledge-drift
+# replaces the old blanket rebaseline-drift.
 Cmnd_Alias SHIELD_APPLY = /opt/shield/actions/apply-security-updates.sh, \
-                          /opt/shield/actions/rebaseline-drift.sh, \
                           /opt/shield/actions/run-webshell-scan.sh, \
-                          /opt/shield/actions/run-lynis-audit.sh
+                          /opt/shield/actions/run-lynis-audit.sh, \
+                          /opt/shield/actions/acknowledge-drift.sh
 
 shield ALL=(root) NOPASSWD: SHIELD_READ, SHIELD_APPLY

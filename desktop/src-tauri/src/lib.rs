@@ -32,7 +32,6 @@ fn default_port() -> u16 {
 // can never be interpolated into a remote command.
 const ACTIONS: &[&str] = &[
     "apply-security-updates.sh",
-    "rebaseline-drift.sh",
     "run-webshell-scan.sh",
     "run-lynis-audit.sh",
 ];
