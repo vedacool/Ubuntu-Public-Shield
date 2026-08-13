@@ -115,7 +115,9 @@ ProtectHome=read-only
 PrivateTmp=yes
 ProtectKernelTunables=yes
 ProtectControlGroups=yes
-RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+# AF_NETLINK is required by ss/ip (socket + route enumeration); without it the
+# ports/exposure collector returns nothing under the sandbox.
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
 EOF
 
   cat > /etc/systemd/system/shield-agent.timer <<EOF

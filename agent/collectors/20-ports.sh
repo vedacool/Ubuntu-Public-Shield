@@ -19,8 +19,10 @@ set -euo pipefail
 command -v ss >/dev/null 2>&1 || { echo '{"ports": [], "ports_error": "ss not found"}'; exit 0; }
 
 # --- host IP + NAT detection ------------------------------------------------
-host_ip="$(ip route get 1.1.1.1 2>/dev/null | grep -oE 'src [0-9.]+' | awk '{print $2}' | head -1)"
-[ -n "${host_ip}" ] || host_ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
+# `|| true` on each pipeline: under `set -euo pipefail` a failed `ip`/`grep`
+# (e.g. netlink blocked, or no match) would otherwise abort the whole collector.
+host_ip="$(ip route get 1.1.1.1 2>/dev/null | grep -oE 'src [0-9.]+' | awk '{print $2}' | head -1 || true)"
+[ -n "${host_ip}" ] || host_ip="$(hostname -I 2>/dev/null | awk '{print $1}' || true)"
 
 is_private() { # IPv4 -> 0 if RFC1918 / CGNAT / loopback / link-local
   case "$1" in
@@ -49,32 +51,39 @@ reach_for() { # <address> -> local|lan|internet
   esac
 }
 
-# service class + friendly label from port/process
-classify() { # <port> <proc> -> "class|label"
-  local port="$1" proc="$2" class="other" label=""
-  case "${proc}" in
-    sshd) class="remote"; label="SSH remote login" ;;
-    pihole-FTL) class="admin"; label="Pi-hole admin panel" ;;
-    mysqld | mariadbd) class="database"; label="MySQL/MariaDB" ;;
-    redis-server) class="database"; label="Redis (often no auth)" ;;
+# service class + friendly label. Port-first so a multi-service process (e.g.
+# pihole-FTL serves DNS on 53 AND the admin panel on 8080) is judged per-port,
+# not blanket-flagged. Emits "class|label"; "other|" = not risky.
+classify() { # <port> <proc>
+  local port="$1" proc="$2"
+  # SSH is identified by process (may run on a non-standard port like 5099).
+  case "${proc}" in sshd) printf 'remote|SSH remote login'; return ;; esac
+  case "${port}" in
+    3306) printf 'database|MySQL/MariaDB'; return ;;
+    5432) printf 'database|PostgreSQL'; return ;;
+    6379) printf 'database|Redis (often no auth)'; return ;;
+    11211) printf 'database|Memcached (often no auth)'; return ;;
+    27017 | 27018 | 27019) printf 'database|MongoDB'; return ;;
+    9200 | 9300) printf 'database|Elasticsearch'; return ;;
+    5984) printf 'database|CouchDB'; return ;;
+    21) printf 'cleartext|FTP (cleartext)'; return ;;
+    23) printf 'cleartext|Telnet (cleartext)'; return ;;
+    3389) printf 'remote|RDP'; return ;;
+    5900 | 5901 | 5902 | 5903 | 5904 | 5905) printf 'remote|VNC'; return ;;
+    8080 | 8081 | 8443 | 9000 | 9090 | 8888 | 3000 | 8006)
+      case "${proc}" in
+        pihole-FTL) printf 'admin|Pi-hole admin panel'; return ;;
+        *) printf 'admin|web admin / app panel'; return ;;
+      esac ;;
+    80 | 443)
+      case "${proc}" in pihole-FTL) printf 'admin|Pi-hole admin panel'; return ;; esac ;;
   esac
-  if [ "${class}" = other ]; then
-    case "${port}" in
-      3306) class="database"; label="MySQL/MariaDB" ;;
-      5432) class="database"; label="PostgreSQL" ;;
-      6379) class="database"; label="Redis (often no auth)" ;;
-      11211) class="database"; label="Memcached (often no auth)" ;;
-      27017 | 27018 | 27019) class="database"; label="MongoDB" ;;
-      9200 | 9300) class="database"; label="Elasticsearch" ;;
-      5984) class="database"; label="CouchDB" ;;
-      21) class="cleartext"; label="FTP (cleartext)" ;;
-      23) class="cleartext"; label="Telnet (cleartext)" ;;
-      3389) class="remote"; label="RDP" ;;
-      5900 | 5901 | 5902 | 5903 | 5904 | 5905) class="remote"; label="VNC" ;;
-      8080 | 8081 | 8443 | 9000 | 9090 | 8888 | 3000 | 8006) class="admin"; label="web admin / app panel" ;;
-    esac
-  fi
-  printf '%s|%s' "${class}" "${label}"
+  # non-standard ports identified by process
+  case "${proc}" in
+    mysqld | mariadbd) printf 'database|MySQL/MariaDB'; return ;;
+    redis-server) printf 'database|Redis (often no auth)'; return ;;
+  esac
+  printf 'other|'
 }
 
 risk_note_for() { # <class> <label> <reach> -> "risk|note" (risk: none|watch|high)
