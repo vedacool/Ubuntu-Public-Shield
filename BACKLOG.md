@@ -59,7 +59,9 @@ Verdict after fixes: **GO** (no open P0/P1). Fixed items verified in CI; open it
 - [x] Tiles: updates, public ports, Lynis, drift, webshell, C2 hits, vulns, failed services, resources — all rendering live
 - [x] Fixed live-test blocker: keyed `{#each}` crash on duplicate real-world keys (udp 5353 avahi+myst); now index-keyed + wrapped in `<svelte:boundary>`
 - [x] Confirmed actions (preview→confirm modal→apply→refresh): **validated end-to-end on the Pi** — "Accept current drift as baseline" ran `sudo -n` over SSH, reset the baseline, drift went 1→0.
-- [ ] UX: state-changing actions (esp. rebaseline) should trigger an immediate agent re-collection so the dashboard reflects the change at once, instead of lagging up to 5 min for the next timer run.
+- [x] **Health & guidance redesign** (from UI audit — "impossible to make a mistake" + "meaningful data"). Live-validated on the Pi: posture verdict banner + agent freshness/liveness; per-item drift acknowledge ("Yes that's me / I didn't do this") replacing the accept-all footgun; exposure section (NAT detection + per-port reach/risk + risky-service flags); "good to know" vulns (fix-available vs pending); compact all-clear + health. Installer auto-trusts Shield's own units. Acknowledge triggers server re-collect + optimistic UI (fixes the timer-stale lag).
+- [ ] **Auto-updater — KIV (deferred by user).** Tauri updater plugin + signing keypair + GitHub Releases feed + CI publish on tagged release + version bump per release. Until then: manual re-run of `setup.exe` upgrades in place.
+- [ ] Vuln finding (d): enrich OSV `priority` (still "unknown" for Debian) — CVSS/Debian urgency.
 - [ ] Commit Cargo.lock (needs a cargo run first — generated in CI now); app icons; SQLite (rusqlite) instead of servers.json
 
 **Consume + feeds**
