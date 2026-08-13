@@ -147,6 +147,7 @@ printf '%s\n' "${records[@]}" | jq -s \
       host_exposure: $host_exposure,
       internet_reachable_count: ([.[] | select(.reach=="internet")] | length),
       lan_reachable_count:      ([.[] | select(.reach=="lan")] | length),
-      risky: [.[] | select(.risk != "none")
-              | {proto, port, process, reach, risk, risk_note}]
+      risky: ([.[] | select(.risk != "none")
+               | {proto, port, process, reach, risk, risk_note}]
+              | unique_by([.proto, .port, .process]))
     }}'

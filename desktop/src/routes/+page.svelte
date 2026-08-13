@@ -286,6 +286,7 @@
 				{/if}
 
 				{#if snap && !error}
+					<svelte:boundary>
 					<!-- Posture banner -->
 					<section class="posture" data-state={posture.state}>
 						<svg class="shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
@@ -410,7 +411,7 @@
 										{/if}
 									</div>
 								</div>
-								{#each snap.exposure.risky ?? [] as r (r.proto + r.port)}
+								{#each snap.exposure.risky ?? [] as r, i (i)}
 									<div class="portrow">
 										<span class="mono">{r.process || 'service'} <span class="pport">:{r.port}</span></span>
 										<span class="pdesc">{r.risk_note}</span>
@@ -474,6 +475,14 @@
 						</div>
 						{#if actionResult}<p class="okmsg">{actionResult}</p>{/if}
 					</section>
+
+					{#snippet failed(err)}
+						<div class="card errbox">
+							<strong>Couldn’t render the dashboard from this server’s data.</strong>
+							<pre>{err instanceof Error ? err.message : String(err)}</pre>
+						</div>
+					{/snippet}
+					</svelte:boundary>
 				{:else if !error}
 					<p class="loading">Connecting over SSH…</p>
 				{/if}
