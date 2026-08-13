@@ -81,10 +81,31 @@ to_json_array() {
 added_json="$(to_json_array "${added}")"
 removed_json="$(to_json_array "${removed}")"
 
+# Fingerprints the user marked "suspicious" via the acknowledge action — kept
+# visible (not folded into the baseline) so they keep showing until investigated.
+FLAGGED="${BASELINE_DIR}/flagged.snapshot"
+flagged_json='[]'
+[ -r "${FLAGGED}" ] && flagged_json="$(to_json_array "$(cat "${FLAGGED}")")"
+
+# Enrich each added item: parse kind + target from the fingerprint and mark
+# whether it's brand-new or already flagged suspicious. Items the user confirmed
+# as theirs are folded into the baseline, so they never reach here.
+added_items="$(jq -n --argjson added "${added_json}" --argjson flagged "${flagged_json}" '
+  ($flagged) as $fl
+  | [ $added[] as $s
+      | ($s | split(":")) as $p
+      | (if $p[0] == "suid" then {kind: "suid", target: ($p[1:] | join(":"))}
+         else {kind: $p[0], target: ($p[1:-1] | join(":"))} end)
+      | . + {fp: $s, status: (if ($fl | index($s)) then "flagged" else "new" end)} ]')"
+flagged_count="$(jq -n --argjson a "${added_items}" '[$a[] | select(.status == "flagged")] | length')"
+
 jq -n \
   --argjson watched "${watched}" \
   --argjson added "${added_json}" \
   --argjson removed "${removed_json}" \
+  --argjson items "${added_items}" \
+  --argjson fc "${flagged_count}" \
   '{drift: {baseline_created: false, watched_items: $watched,
             added: $added, removed: $removed,
-            added_count: ($added | length), removed_count: ($removed | length)}}'
+            added_count: ($added | length), removed_count: ($removed | length),
+            added_items: $items, flagged_count: $fc}}'

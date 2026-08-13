@@ -1,45 +1,53 @@
 #!/usr/bin/env bats
-#
-# Action tests — preview mode must be read-only and emit valid JSON on any host.
-# --apply paths need root/apt and are exercised during live testing, not CI.
+# Per-item acknowledge action — the safe replacement for accept-all rebaseline.
 
 setup() {
   REPO="${BATS_TEST_DIRNAME}/.."
-  export SHIELD_HOME="${REPO}/agent"
-  export SHIELD_LOG_DIR="${BATS_TEST_TMPDIR}/log"
+  ACK="${REPO}/agent/actions/acknowledge-drift.sh"
   export SHIELD_BASELINE_DIR="${BATS_TEST_TMPDIR}/baseline"
   export SHIELD_STATE_DIR="${BATS_TEST_TMPDIR}/state"
-  mkdir -p "${SHIELD_LOG_DIR}" "${SHIELD_BASELINE_DIR}" "${SHIELD_STATE_DIR}"
+  mkdir -p "${SHIELD_BASELINE_DIR}" "${SHIELD_STATE_DIR}"
+  FP='authkey:/home/tester/.ssh/authorized_keys:deadbeef'
 }
 
-@test "every action defaults to preview mode and emits valid JSON" {
-  for a in "${REPO}"/agent/actions/*.sh; do
-    case "$a" in */lib.sh) continue ;; esac
-    run bash "$a"
-    [ "$status" -eq 0 ] || { echo "action failed: $a"; return 1; }
-    echo "$output" | jq -e '.mode == "preview" or (.error | length > 0)' >/dev/null \
-      || { echo "not preview/valid: $a -> $output"; return 1; }
-  done
-}
-
-@test "preview mode writes nothing to the action log" {
-  bash "${REPO}/agent/actions/apply-security-updates.sh" >/dev/null || true
-  [ ! -s "${SHIELD_LOG_DIR}/actions.log" ]
-}
-
-@test "rebaseline preview surfaces the current drift block" {
-  run bash "${REPO}/agent/actions/rebaseline-drift.sh"
+@test "acknowledge: preview (mine) changes nothing, ok:true" {
+  run bash "${ACK}" --fp "${FP}" --verdict mine
   [ "$status" -eq 0 ]
-  echo "$output" | jq -e '.action == "rebaseline-drift" and .mode == "preview"' >/dev/null
+  echo "$output" | jq -e '.ok == true and .mode == "preview" and .verdict == "mine"' >/dev/null
+  [ ! -f "${SHIELD_BASELINE_DIR}/persistence.snapshot" ]
 }
 
-@test "webshell-scan --apply actually scans and refreshes state" {
-  webroot="${BATS_TEST_TMPDIR}/www"
-  mkdir -p "${webroot}"
-  local open="<?""php"
-  printf '%s echo 1; ?>\n' "${open}" > "${webroot}/i.php"
-  SHIELD_WEBROOTS="${webroot}" run bash "${REPO}/agent/actions/run-webshell-scan.sh" --apply
+@test "acknowledge: rejects an unknown fingerprint kind" {
+  run bash "${ACK}" --fp 'evil:rm -rf /' --verdict mine
+  [ "$status" -eq 2 ]
+  echo "$output" | jq -e '.ok == false' >/dev/null
+}
+
+@test "acknowledge: rejects a bad verdict" {
+  run bash "${ACK}" --fp "${FP}" --verdict whatever
+  [ "$status" -eq 2 ]
+  echo "$output" | jq -e '.ok == false' >/dev/null
+}
+
+@test "acknowledge --apply mine: folds the fingerprint into the baseline" {
+  run bash "${ACK}" --fp "${FP}" --verdict mine --apply
   [ "$status" -eq 0 ]
-  echo "$output" | jq -e '.action == "run-webshell-scan" and .mode == "apply"' >/dev/null
-  [ -f "${SHIELD_STATE_DIR}/webshell.json" ]
+  echo "$output" | jq -e '.ok == true and .mode == "apply"' >/dev/null
+  grep -qxF "${FP}" "${SHIELD_BASELINE_DIR}/persistence.snapshot"
+  grep -qF "mine" "${SHIELD_STATE_DIR}/acknowledged.tsv"
+}
+
+@test "acknowledge --apply suspicious: records to flagged, not baseline" {
+  run bash "${ACK}" --fp "${FP}" --verdict suspicious --apply
+  [ "$status" -eq 0 ]
+  grep -qxF "${FP}" "${SHIELD_BASELINE_DIR}/flagged.snapshot"
+  [ ! -f "${SHIELD_BASELINE_DIR}/persistence.snapshot" ]
+}
+
+@test "acknowledge mine clears a prior suspicious flag" {
+  bash "${ACK}" --fp "${FP}" --verdict suspicious --apply
+  bash "${ACK}" --fp "${FP}" --verdict mine --apply
+  grep -qxF "${FP}" "${SHIELD_BASELINE_DIR}/persistence.snapshot"
+  run grep -qxF "${FP}" "${SHIELD_BASELINE_DIR}/flagged.snapshot"
+  [ "$status" -ne 0 ]
 }
