@@ -213,6 +213,19 @@ run "'${SHIELD_HOME}/tools/fetch-feeds.sh' || true"
 log "Running first collection"
 run "'${SHIELD_HOME}/shield-agent' || true"
 
+# Trust our OWN systemd units so the tool never flags its own install as
+# suspicious persistence drift. Runs after the baseline exists (first collection
+# creates it); idempotent — a no-op on a fresh install where they're already in
+# the baseline, and folds them in on an upgrade that added new units.
+if ! ${DRY_RUN} && [ -x "${SHIELD_HOME}/actions/acknowledge-drift.sh" ]; then
+  for u in shield-agent.service shield-watch.service shield-feeds.service shield-feeds.timer; do
+    f="/etc/systemd/system/${u}"
+    [ -f "${f}" ] || continue
+    fp="unit:${f}:$(sha256sum < "${f}" | cut -d' ' -f1)"
+    "${SHIELD_HOME}/actions/acknowledge-drift.sh" --fp "${fp}" --verdict mine --apply >/dev/null 2>&1 || true
+  done
+fi
+
 log "Done."
 log "State file: ${STATE_DIR}/latest.json"
 if ! ${DRY_RUN}; then

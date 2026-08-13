@@ -95,30 +95,34 @@
 		return d > 0 ? `${d}d ${h}h` : `${h}h`;
 	}
 
-	// posture: one honest verdict + how many items need the user
+	// posture: one honest verdict + a count that matches the actionable cards.
 	const posture = $derived.by(() => {
 		const s = snap;
 		if (!s) return { state: 'good', verdict: '', sub: '', count: 0 };
 		const driftNew = (s.drift?.added_items ?? []).filter((d) => d.status === 'new').length;
 		const flagged = s.drift?.flagged_count ?? 0;
 		const lynisMissing = s.lynis?.installed === false ? 1 : 0;
-		const webHigh = s.webshell?.high_count ?? 0;
-		const fileHits = s.file_events?.webshell_suspect ?? 0;
 		const failed = s.services?.failed_count ?? 0;
+		const vulnFix = s.vulns?.fix_available_count ?? 0;
+		const webHigh = s.webshell?.high_count ?? 0;
 		const netHigh = (s.exposure?.risky ?? []).filter(
 			(r) => r.reach === 'internet' && r.risk === 'high'
 		).length;
 
-		const critN = flagged + webHigh + netHigh + (fileHits > 0 ? 1 : 0);
-		if (critN > 0)
+		// Everything the user could act on = what the sections below actually show.
+		const count = driftNew + flagged + lynisMissing + failed + vulnFix;
+		// Genuine "act now" signals — a change you flagged, a confirmed web shell,
+		// or a high-risk service exposed to the internet. (Not routine file writes.)
+		const critical = flagged > 0 || webHigh > 0 || netHigh > 0;
+
+		if (critical)
 			return {
 				state: 'crit',
 				verdict: 'Something needs your attention now',
-				sub: 'A flagged change or a live threat signal is open. Handle the red items below first.',
-				count: critN
+				sub: 'A flagged change, a web shell, or an internet-exposed service is open. Handle the red items first.',
+				count
 			};
-		const needs = driftNew + lynisMissing + (failed > 0 ? 1 : 0);
-		if (needs === 0)
+		if (count === 0)
 			return {
 				state: 'good',
 				verdict: 'Protected — nothing needs you',
@@ -127,9 +131,9 @@
 			};
 		return {
 			state: 'watch',
-			verdict: needs === 1 ? 'One thing needs your review' : `${needs} things need your review`,
+			verdict: count === 1 ? 'One thing needs your review' : `${count} things need your review`,
 			sub: 'No sign of a break-in — but there are changes you haven’t confirmed yet. Review them and you’re done.',
-			count: needs
+			count
 		};
 	});
 
