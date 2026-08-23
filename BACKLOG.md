@@ -61,8 +61,9 @@ Verdict after fixes: **GO** (no open P0/P1). Fixed items verified in CI; open it
 - [x] Confirmed actions (preview→confirm modal→apply→refresh): **validated end-to-end on the Pi** — "Accept current drift as baseline" ran `sudo -n` over SSH, reset the baseline, drift went 1→0.
 - [x] **Health & guidance redesign** (from UI audit — "impossible to make a mistake" + "meaningful data"). Live-validated on the Pi: posture verdict banner + agent freshness/liveness; per-item drift acknowledge ("Yes that's me / I didn't do this") replacing the accept-all footgun; exposure section (NAT detection + per-port reach/risk + risky-service flags); "good to know" vulns (fix-available vs pending); compact all-clear + health. Installer auto-trusts Shield's own units. Acknowledge triggers server re-collect + optimistic UI (fixes the timer-stale lag).
 - [ ] **Auto-updater — KIV (deferred by user).** Tauri updater plugin + signing keypair + GitHub Releases feed + CI publish on tagged release + version bump per release. Until then: manual re-run of `setup.exe` upgrades in place.
-- [ ] Vuln finding (d): enrich OSV `priority` (still "unknown" for Debian) — CVSS/Debian urgency.
-- [ ] Commit Cargo.lock (needs a cargo run first — generated in CI now); app icons; SQLite (rusqlite) instead of servers.json
+- [x] Vuln severity: extract Debian triage urgency (OSV `affected[].ecosystem_specific.urgency`) → feed + matcher aggregate worst per pkg → "Debian: <urgency>" chip. Live: gst CVEs show "not yet assigned".
+- [x] Real app icon — brand shield (teal gradient + white glyph), full `tauri icon` set.
+- [ ] Commit Cargo.lock (needs a cargo run first — generated in CI now); SQLite (rusqlite) instead of servers.json
 
 **Consume + feeds**
 - [ ] Netdata + CrowdSec install options in `install.sh` (flags)
