@@ -56,6 +56,7 @@ export interface VulnEntry {
 	fixed: string;
 	candidate?: string;
 	status?: 'fix_available' | 'fix_pending';
+	urgency?: string; // Debian triage: high | medium | low | unimportant | unknown
 	cves?: string[];
 	cve_count?: number;
 	binaries?: string[];

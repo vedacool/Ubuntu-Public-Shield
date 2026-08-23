@@ -122,9 +122,11 @@ build_vulns_osv() {
     printf '%s' "${detail}" | jq -r --arg eco "${eco}" --arg name "${name}" '
       .vulns[]?
       | ((.aliases // [] | map(select(startswith("CVE-"))) | .[0]) // (.id | sub("^DEBIAN-"; ""))) as $cve
-      | ((.database_specific.severity // .ecosystem_specific.urgency // "unknown") | tostring) as $prio
       | .affected[]?
       | select(.package.ecosystem == $eco and .package.name == $name)
+      # Debian triage urgency lives on the affected entry (high/medium/low/
+      # unimportant/not yet assigned) — the most relevant priority for the distro.
+      | ((.ecosystem_specific.urgency // "unknown") | tostring | gsub("\t"; " ")) as $prio
       | .ranges[]?.events[]? | select(.fixed) | .fixed
       | "\($name)\t\(.)\t\($cve)\t\($prio)"' >> "${out}" 2>/dev/null || true
   done <<< "${affected}"

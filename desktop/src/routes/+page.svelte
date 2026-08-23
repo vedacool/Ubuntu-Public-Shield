@@ -160,6 +160,13 @@
 		}
 	}
 
+	// Debian urgency -> severity colour for the chip
+	function urgSev(u?: string): 'crit' | 'watch' | 'none' {
+		if (u === 'high') return 'crit';
+		if (u === 'medium') return 'watch';
+		return 'none';
+	}
+
 	// ---- drift acknowledge (direct, informed, reversible) ------------------
 	// The agent regenerates latest.json only on its timer, so we update the view
 	// optimistically (and the action triggers a fresh collection server-side).
@@ -382,6 +389,9 @@
 											<span class="chip" data-sev={v.status === 'fix_available' ? 'crit' : 'watch'}>
 												{v.status === 'fix_available' ? 'update available' : 'fix pending'}
 											</span>
+											{#if v.urgency && v.urgency !== 'unknown'}
+												<span class="chip" data-sev={urgSev(v.urgency)}>Debian: {v.urgency}</span>
+											{/if}
 										</div>
 										<div class="fwhy">
 											{#if v.status === 'fix_available'}

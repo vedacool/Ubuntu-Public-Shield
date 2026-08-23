@@ -33,9 +33,13 @@ while IFS=$'\t' read -r bin src sver; do
 done < <(dpkg-query -W -f='${Package}\t${source:Package}\t${source:Version}\n' 2>/dev/null || true)
 
 # Group advisories by source package where installed << fixed.
-declare -A vfixed vcves
+declare -A vfixed vcves vurg
+
+# Debian triage urgency, ranked so we can keep the WORST urgency per package.
+urg_rank() { case "$1" in high) echo 4 ;; medium) echo 3 ;; low) echo 2 ;; unimportant) echo 1 ;; *) echo 0 ;; esac; }
+
 checked=0
-while IFS=$'\t' read -r pkg fixed cve _prio; do
+while IFS=$'\t' read -r pkg fixed cve prio; do
   [ -n "${pkg}" ] || continue
   case "${pkg}" in \#*) continue ;; esac
   [ -n "${fixed}" ] || continue
@@ -48,6 +52,9 @@ while IFS=$'\t' read -r pkg fixed cve _prio; do
       vfixed["${pkg}"]="${fixed}"
     fi
     [ -n "${cve}" ] && vcves["${pkg}"]="${vcves[${pkg}]:-}${cve} "
+    if [ -n "${prio}" ] && [ "$(urg_rank "${prio}")" -gt "$(urg_rank "${vurg[${pkg}]:-unknown}")" ]; then
+      vurg["${pkg}"]="${prio}"
+    fi
   fi
 done < "${FEED}"
 
@@ -83,9 +90,9 @@ for pkg in "${!vfixed[@]}"; do
 
   entries+=("$(jq -n \
     --arg p "${pkg}" --arg i "${iv}" --arg f "${fixed}" \
-    --arg cand "${cand}" --arg st "${status}" \
+    --arg cand "${cand}" --arg st "${status}" --arg urg "${vurg[${pkg}]:-unknown}" \
     --argjson cves "${cves_json}" --argjson bins "${bins_json}" \
-    '{package:$p, installed:$i, fixed:$f, candidate:$cand, status:$st,
+    '{package:$p, installed:$i, fixed:$f, candidate:$cand, status:$st, urgency:$urg,
       cves:$cves, cve_count:($cves|length), binaries:$bins}')")
 done
 
