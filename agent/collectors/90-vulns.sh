@@ -36,7 +36,13 @@ done < <(dpkg-query -W -f='${Package}\t${source:Package}\t${source:Version}\n' 2
 declare -A vfixed vcves vurg
 
 # Debian triage urgency, ranked so we can keep the WORST urgency per package.
-urg_rank() { case "$1" in high) echo 4 ;; medium) echo 3 ;; low) echo 2 ;; unimportant) echo 1 ;; *) echo 0 ;; esac; }
+# "not yet assigned" (Debian knows but hasn't rated) ranks above bare "unknown".
+urg_rank() {
+  case "$1" in
+    high) echo 5 ;; medium) echo 4 ;; low) echo 3 ;; unimportant) echo 2 ;;
+    "not yet assigned") echo 1 ;; *) echo 0 ;;
+  esac
+}
 
 checked=0
 while IFS=$'\t' read -r pkg fixed cve prio; do
