@@ -16,12 +16,23 @@ if [ "${mode}" = "preview" ]; then
   jq -n --argjson installed "${installed}" \
     '{action:"run-lynis-audit", mode:"preview", lynis_installed:$installed,
       note:(if $installed then "run with --apply (takes minutes)"
-            else "install lynis first (apt-get install -y lynis)" end)}'
+            else "will install lynis, then run the scan" end)}'
   exit 0
 fi
 
+# --apply: install Lynis on demand if it isn't present, so "Set up now" works.
 if ! ${installed}; then
-  jq -n '{action:"run-lynis-audit", mode:"apply", ok:false, error:"lynis not installed"}'
+  log_action "run-lynis-audit" "apply" "installing lynis"
+  if command -v apt-get >/dev/null 2>&1; then
+    if ! apt-get install -y lynis >/dev/null 2>&1; then
+      apt-get update >/dev/null 2>&1 || true
+      apt-get install -y lynis >/dev/null 2>&1 || true
+    fi
+  fi
+  command -v lynis >/dev/null 2>&1 && installed=true
+fi
+if ! ${installed}; then
+  jq -n '{action:"run-lynis-audit", mode:"apply", ok:false, error:"could not install lynis — try: sudo apt install lynis"}'
   exit 0
 fi
 

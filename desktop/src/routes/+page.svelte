@@ -210,8 +210,13 @@
 		}
 		if (action === 'run-webshell-scan.sh')
 			return 'This scans your website folders for hidden hacker files. It only reads files — nothing on the server is changed.';
-		if (action === 'run-lynis-audit.sh')
-			return 'This runs an in-depth security scan (200+ checks) and gives your server a score. It only inspects settings — nothing is changed. It can take a minute or two.';
+		if (action === 'run-lynis-audit.sh') {
+			const base =
+				'It only inspects settings — nothing else is changed — and takes a minute or two.';
+			return p.lynis_installed === false
+				? `This installs the Lynis scanner (a small one-time download), then runs an in-depth security scan (200+ checks) for a score. ${base}`
+				: `This runs an in-depth security scan (200+ checks) and gives your server a score. ${base}`;
+		}
 		return p.note ? String(p.note) : 'Ready to run.';
 	}
 
