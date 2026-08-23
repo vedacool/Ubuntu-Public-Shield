@@ -23,6 +23,7 @@
 	// confirm modal for heavier actions (preview -> apply)
 	let pending = $state<{ action: ActionName; label: string; preview: unknown } | null>(null);
 	let actionBusy = $state(false);
+	let previewLoading = $state(false);
 	let actionResult = $state<string | null>(null);
 	let modalError = $state<string | null>(null);
 	let busyFp = $state<string | null>(null); // drift item currently being acknowledged
@@ -198,20 +199,42 @@
 		{ action: 'run-webshell-scan.sh', label: 'Scan my website for hacker files' },
 		{ action: 'run-lynis-audit.sh', label: 'Run a deep security scan' }
 	];
+	// Plain-English description of what an action will do, from its preview.
+	function previewSummary(action: ActionName, preview: unknown): string {
+		const p = (preview ?? {}) as Record<string, unknown>;
+		if (action === 'apply-security-updates.sh') {
+			const n = Number(p.would_upgrade_count ?? 0);
+			if (!n) return 'You’re already up to date — there’s nothing to install.';
+			const names = Array.isArray(p.packages) ? (p.packages as string[]).slice(0, 12).join(', ') : '';
+			return `This will install ${n} security update${n === 1 ? '' : 's'}${names ? ': ' + names : ''}. Some services may briefly restart.`;
+		}
+		if (action === 'run-webshell-scan.sh')
+			return 'This scans your website folders for hidden hacker files. It only reads files — nothing on the server is changed.';
+		if (action === 'run-lynis-audit.sh')
+			return 'This runs an in-depth security scan (200+ checks) and gives your server a score. It only inspects settings — nothing is changed. It can take a minute or two.';
+		return p.note ? String(p.note) : 'Ready to run.';
+	}
+
+	// Open the confirm box IMMEDIATELY (with a "checking…" state) so the click has
+	// instant feedback, then fill in the preview when the SSH round-trip returns.
 	async function openAction(action: ActionName, label: string) {
 		modalError = null;
 		actionResult = null;
+		pending = { action, label, preview: null };
+		previewLoading = true;
 		try {
 			const preview = await runAction(selected!, action, false);
-			pending = { action, label, preview };
+			if (pending) pending.preview = preview;
 		} catch (e) {
 			modalError = String(e);
-			pending = { action, label, preview: null };
+		} finally {
+			previewLoading = false;
 		}
 	}
 	function closeModal() {
 		pending = null;
 		actionBusy = false;
+		previewLoading = false;
 		modalError = null;
 	}
 	async function confirmAction() {
@@ -522,15 +545,22 @@
 		<div class="modal" role="dialog" aria-modal="true" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={() => {}}>
 			<h2>{pending.label}</h2>
 			{#if modalError}
-				<div class="errbox"><pre>{modalError}</pre></div>
+				<div class="errbox"><strong>That didn’t work.</strong><pre>{modalError}</pre></div>
+			{:else if previewLoading}
+				<p class="muted">Checking what this will do… <span class="dots">●●●</span><br />(this can take a few seconds — it runs over SSH)</p>
 			{:else}
-				<p class="muted">Preview — nothing has changed yet:</p>
-				<pre class="preview">{JSON.stringify(pending.preview, null, 2)}</pre>
+				<p class="lead">{previewSummary(pending.action, pending.preview)}</p>
+				<p class="muted">Nothing has changed yet — press the button below to go ahead.</p>
+				<details class="rawbox"><summary>Technical details</summary><pre class="preview">{JSON.stringify(pending.preview, null, 2)}</pre></details>
 			{/if}
 			<div class="modal-actions">
 				<button class="btn" onclick={closeModal}>Cancel</button>
-				<button class="btn primary" disabled={actionBusy || !!modalError} onclick={confirmAction}>
-					{actionBusy ? 'Working…' : 'Confirm & apply'}
+				<button
+					class="btn primary"
+					disabled={actionBusy || previewLoading || !!modalError}
+					onclick={confirmAction}
+				>
+					{actionBusy ? 'Working…' : previewLoading ? 'Checking…' : 'Yes, do it'}
 				</button>
 			</div>
 		</div>
@@ -683,7 +713,11 @@
 	.modal { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); max-width: 560px; width: 100%; max-height: 82vh; overflow: auto; padding: 20px 22px; }
 	.modal h2 { font-size: 18px; }
 	.modal .muted { color: var(--muted); font-size: 13px; }
-	.preview { background: var(--surface-2); border: 1px solid var(--line); border-radius: 9px; padding: 12px; font-family: var(--mono); font-size: 12px; white-space: pre-wrap; overflow: auto; }
+	.modal .lead { font-size: 15px; margin: 0 0 6px; line-height: 1.45; }
+	.modal .dots { letter-spacing: 3px; opacity: 0.45; }
+	.rawbox { margin-top: 10px; }
+	.rawbox summary { cursor: pointer; color: var(--muted); font-size: 12.5px; }
+	.preview { background: var(--surface-2); border: 1px solid var(--line); border-radius: 9px; padding: 12px; font-family: var(--mono); font-size: 12px; white-space: pre-wrap; overflow: auto; margin-top: 8px; }
 	.modal-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 14px; }
 
 	@media (max-width: 760px) {
