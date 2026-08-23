@@ -175,16 +175,22 @@ fn remove_server(app: tauri::AppHandle, name: String) -> Result<Vec<Server>, Str
 
 // Read the agent's state document. latest.json is world-readable, so no sudo.
 #[tauri::command]
-fn fetch_state(app: tauri::AppHandle, name: String) -> Result<serde_json::Value, String> {
+async fn fetch_state(app: tauri::AppHandle, name: String) -> Result<serde_json::Value, String> {
     let server = find_server(&app, &name)?;
-    let out = ssh_run(&server, "cat /var/lib/shield/state/latest.json")?;
+    // Run the blocking SSH off the UI thread so the window never freezes while
+    // connecting (SSH can take up to the connect timeout on a slow/dead host).
+    let out = tauri::async_runtime::spawn_blocking(move || {
+        ssh_run(&server, "cat /var/lib/shield/state/latest.json")
+    })
+    .await
+    .map_err(|e| format!("ssh task failed: {e}"))??;
     parse_json_lenient(&out).map_err(|e| format!("agent state was not valid JSON: {e}"))
 }
 
 // Run a confirmed action. `apply=false` previews (read-only); `apply=true`
 // performs the change. The action must be on the allowlist.
 #[tauri::command]
-fn run_action(
+async fn run_action(
     app: tauri::AppHandle,
     name: String,
     action: String,
@@ -196,7 +202,9 @@ fn run_action(
     let server = find_server(&app, &name)?;
     let flag = if apply { "--apply" } else { "--preview" };
     let cmd = format!("sudo -n /opt/shield/actions/{action} {flag}");
-    let out = ssh_run(&server, &cmd)?;
+    let out = tauri::async_runtime::spawn_blocking(move || ssh_run(&server, &cmd))
+        .await
+        .map_err(|e| format!("ssh task failed: {e}"))??;
     parse_json_lenient(&out).map_err(|e| format!("action did not return valid JSON: {e}"))
 }
 
@@ -205,7 +213,7 @@ fn run_action(
 // logged). The fingerprint is validated to a known kind and single-quoted for
 // the remote shell; verdict is allowlisted. Replaces blanket accept-all.
 #[tauri::command]
-fn acknowledge_drift(
+async fn acknowledge_drift(
     app: tauri::AppHandle,
     name: String,
     fp: String,
@@ -227,7 +235,9 @@ fn acknowledge_drift(
         verdict,
         flag
     );
-    let out = ssh_run(&server, &cmd)?;
+    let out = tauri::async_runtime::spawn_blocking(move || ssh_run(&server, &cmd))
+        .await
+        .map_err(|e| format!("ssh task failed: {e}"))??;
     parse_json_lenient(&out).map_err(|e| format!("action did not return valid JSON: {e}"))
 }
 
