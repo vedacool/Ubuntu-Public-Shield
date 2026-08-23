@@ -121,13 +121,21 @@ fn ssh_run(server: &Server, remote_cmd: &str) -> Result<String, String> {
         return Err("server user/host contains invalid characters".into());
     }
     let target = format!("{}@{}", server.user, server.host);
-    let output = Command::new("ssh")
-        .args(["-o", "BatchMode=yes"])
+    let mut cmd = Command::new("ssh");
+    cmd.args(["-o", "BatchMode=yes"])
         .args(["-o", "ConnectTimeout=10"])
         .args(["-o", "StrictHostKeyChecking=accept-new"])
         .args(["-p", &server.port.to_string()])
         .arg(&target) // safe: valid_field() rejects a leading '-' so this can't be an option
-        .arg(remote_cmd)
+        .arg(remote_cmd);
+    // On Windows, a GUI app spawning a console tool pops up a black console
+    // window; CREATE_NO_WINDOW (0x08000000) suppresses it.
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x0800_0000);
+    }
+    let output = cmd
         .output()
         .map_err(|e| format!("failed to launch ssh (is the OpenSSH client installed?): {e}"))?;
 

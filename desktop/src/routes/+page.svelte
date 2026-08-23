@@ -502,6 +502,12 @@
 								{@render tick()}
 								<div><div class="t">Live file monitoring {snap.file_events?.watching ? 'on' : 'off'}</div><div class="d">{snap.file_events?.webshell_suspect ?? 0} noteworthy events</div></div>
 							</div>
+							{#if snap.lynis?.installed}
+								<div class="clear-cell" data-ok={(snap.lynis?.hardening_index ?? 0) >= 65}>
+									{@render tick()}
+									<div><div class="t">Security scan score</div><div class="d">{snap.lynis?.hardening_index ?? '—'} / 100 (higher is better)</div></div>
+								</div>
+							{/if}
 						</div>
 					</section>
 
