@@ -119,7 +119,7 @@
 			return {
 				state: 'crit',
 				verdict: 'Something needs your attention now',
-				sub: 'A flagged change, a web shell, or an internet-exposed service is open. Handle the red items first.',
+				sub: 'A change you flagged, a hacker file, or a service open to the internet needs you. Handle the red items first.',
 				count
 			};
 		if (count === 0)
@@ -147,16 +147,16 @@
 	function driftTitle(d: DriftItem): string {
 		switch (d.kind) {
 			case 'authkey':
-				return 'A new SSH login key was added';
+				return 'A new remote-login key was added';
 			case 'cron':
 			case 'usercron':
-				return 'A new scheduled task (cron) appeared';
+				return 'A new scheduled task was added';
 			case 'unit':
-				return 'A new service now starts on boot';
+				return 'A new program set to run at startup';
 			case 'suid':
-				return 'A new privileged (SUID) program appeared';
+				return 'A new program with admin powers appeared';
 			default:
-				return 'A start-up / access change';
+				return 'A startup or access change';
 		}
 	}
 
@@ -195,8 +195,8 @@
 	// ---- heavier confirmed actions (preview -> confirm -> apply) ------------
 	const ACTIONS: { action: ActionName; label: string }[] = [
 		{ action: 'apply-security-updates.sh', label: 'Install security updates' },
-		{ action: 'run-webshell-scan.sh', label: 'Scan for web shells now' },
-		{ action: 'run-lynis-audit.sh', label: 'Run hardening audit' }
+		{ action: 'run-webshell-scan.sh', label: 'Scan my website for hacker files' },
+		{ action: 'run-lynis-audit.sh', label: 'Run a deep security scan' }
 	];
 	async function openAction(action: ActionName, label: string) {
 		modalError = null;
@@ -292,8 +292,8 @@
 						{#if snap}
 							<div class="freshness" class:stale={fresh.stale}>
 								<span class="dot"></span>
-								{#if fresh.stale}Agent may be down — no data for {fresh.text}{:else}Agent healthy ·
-									checked {fresh.text}{/if}
+								{#if fresh.stale}No update in {fresh.text} — the monitor may be down{:else}Monitoring active ·
+									last checked {fresh.text}{/if}
 							</div>
 						{/if}
 					</div>
@@ -302,7 +302,7 @@
 
 				{#if error}
 					<div class="card errbox">
-						<strong>Could not reach the agent.</strong>
+						<strong>Couldn’t reach this server.</strong>
 						<pre>{error}</pre>
 					</div>
 				{/if}
@@ -342,8 +342,8 @@
 											</span>
 										</div>
 										<div class="fwhy">
-											New scheduled tasks, services, or SSH keys are how an intruder stays in after a
-											break-in. Confirm this is something <b>you</b> did — nothing is silenced until you do.
+											New auto-start programs, scheduled tasks, or login keys are how a hacker keeps
+											access after breaking in. Confirm you set this up — nothing is hidden until you do.
 										</div>
 										<div class="ftarget mono">{d.target}</div>
 									</div>
@@ -362,14 +362,14 @@
 								<div class="card finding" data-sev="none">
 									<div class="stripe"></div>
 									<div class="fbody">
-										<div class="ftitle">Hardening audit isn’t set up <span class="chip" data-sev="none">not measured</span></div>
+										<div class="ftitle">In-depth security scan isn’t set up <span class="chip" data-sev="none">not measured</span></div>
 										<div class="fwhy">
-											Lynis checks 200+ hardening settings and gives a score. It isn’t installed, so this
-											is a blind spot — not a problem we found, just one we can’t see yet.
+											This optional deep scan checks 200+ security settings and gives a score. It isn’t set up, so this
+											is a blind spot — not a problem we found, just something we can’t see yet.
 										</div>
 									</div>
 									<div class="faside">
-										<button class="btn primary" onclick={() => openAction('run-lynis-audit.sh', 'Set up hardening audit')}>Set up now</button>
+										<button class="btn primary" onclick={() => openAction('run-lynis-audit.sh', 'Set up the security scan')}>Set up now</button>
 									</div>
 								</div>
 							{/if}
@@ -390,17 +390,17 @@
 												{v.status === 'fix_available' ? 'update available' : 'fix pending'}
 											</span>
 											{#if v.urgency && v.urgency !== 'unknown'}
-												<span class="chip" data-sev={urgSev(v.urgency)}>Debian: {v.urgency}</span>
+												<span class="chip" data-sev={urgSev(v.urgency)}>severity: {v.urgency === 'not yet assigned' ? 'not rated yet' : v.urgency}</span>
 											{/if}
 										</div>
 										<div class="fwhy">
 											{#if v.status === 'fix_available'}
-												A fix is in your repositories — installing updates clears it.
+												An update that fixes this is available — install it to clear this.
 											{:else}
-												The fix (<span class="mono">{v.fixed}</span>) isn’t in your repositories yet, so
-												there’s nothing to install. We’ll alert you when it ships.
+												The fix (<span class="mono">{v.fixed}</span>) isn’t available to install yet, so
+												there’s nothing to do right now. We’ll tell you when it’s out.
 											{/if}
-											<span class="mono faint"> installed {v.installed}{v.candidate ? ` · repo ${v.candidate}` : ''}</span>
+											<span class="mono faint"> you have {v.installed}{v.candidate ? ` · newest available ${v.candidate}` : ''}</span>
 										</div>
 									</div>
 									<div class="faside">
@@ -426,13 +426,13 @@
 									</svg>
 									<div>
 										{#if snap.exposure.host_exposure === 'nat'}
-											<b>You’re behind your router (NAT).</b> Nothing is directly reachable from the internet
-											unless you’ve set up port-forwarding. Below is what other devices on your network can reach.
+											<b>You’re behind your home router.</b> Nothing here can be reached from the internet
+											unless you deliberately opened a port on the router. Below is what other devices on your home network can reach.
 										{:else if snap.exposure.host_exposure === 'public'}
-											<b>This host has a public IP — {snap.exposure.internet_reachable_count} service(s) are reachable from the internet.</b>
-											Treat anything below as internet-facing.
+											<b>This server is directly on the internet — {snap.exposure.internet_reachable_count} service(s) can be reached from anywhere.</b>
+											Treat everything below as open to the internet.
 										{:else}
-											Exposure could not be determined.
+											Couldn’t work out what’s exposed.
 										{/if}
 									</div>
 								</div>
@@ -440,11 +440,11 @@
 									<div class="portrow">
 										<span class="mono">{r.process || 'service'} <span class="pport">:{r.port}</span></span>
 										<span class="pdesc">{r.risk_note}</span>
-										<span class="chip" data-sev={r.risk === 'high' ? 'crit' : 'watch'}>{r.reach === 'internet' ? 'internet' : 'LAN'} · {r.risk}</span>
+										<span class="chip" data-sev={r.risk === 'high' ? 'crit' : 'watch'}>{r.reach === 'internet' ? 'internet' : 'home network'} · {r.risk}</span>
 									</div>
 								{/each}
 								{#if (snap.exposure.risky?.length ?? 0) === 0}
-									<div class="portrow"><span class="pdesc">No risky services exposed. {snap.ports_public_count ?? 0} ports listen on all interfaces (routine local/DNS services).</span></div>
+									<div class="portrow"><span class="pdesc">Nothing risky is exposed. {snap.ports_public_count ?? 0} ports are open for normal local services (DNS, network discovery, etc.).</span></div>
 								{/if}
 							</div>
 						</section>
@@ -456,23 +456,23 @@
 						<div class="clear-grid">
 							<div class="clear-cell" data-ok={(snap.updates?.security ?? 0) === 0}>
 								{@render tick()}
-								<div><div class="t">{(snap.updates?.security ?? 0) === 0 ? 'Up to date' : `${snap.updates?.security} security updates`}</div><div class="d">{snap.updates?.total ?? 0} total pending</div></div>
+								<div><div class="t">{(snap.updates?.security ?? 0) === 0 ? 'Up to date' : `${snap.updates?.security} security updates`}</div><div class="d">{snap.updates?.total ?? 0} updates waiting</div></div>
 							</div>
 							<div class="clear-cell" data-ok={(snap.webshell?.finding_count ?? 0) === 0}>
 								{@render tick()}
-								<div><div class="t">{(snap.webshell?.finding_count ?? 0) === 0 ? 'No web shells' : `${snap.webshell?.finding_count} web-shell hits`}</div><div class="d">{snap.webshell?.scanned ?? 0} files scanned</div></div>
+								<div><div class="t">{(snap.webshell?.finding_count ?? 0) === 0 ? 'No hacker files on your site' : `${snap.webshell?.finding_count} suspicious files found`}</div><div class="d">{snap.webshell?.scanned ?? 0} website files checked</div></div>
 							</div>
 							<div class="clear-cell" data-ok={(snap.threat_intel?.match_count ?? 0) === 0}>
 								{@render tick()}
-								<div><div class="t">{(snap.threat_intel?.match_count ?? 0) === 0 ? 'No calls to bad IPs' : `${snap.threat_intel?.match_count} bad-IP calls`}</div><div class="d">{snap.threat_intel?.feed_present ? 'feed current' : 'no feed'}</div></div>
+								<div><div class="t">{(snap.threat_intel?.match_count ?? 0) === 0 ? 'No contact with bad servers' : `${snap.threat_intel?.match_count} contacts with bad servers`}</div><div class="d">{snap.threat_intel?.feed_present ? 'list up to date' : 'no list yet'}</div></div>
 							</div>
 							<div class="clear-cell" data-ok={(snap.services?.failed_count ?? 0) === 0}>
 								{@render tick()}
-								<div><div class="t">{(snap.services?.failed_count ?? 0) === 0 ? 'All services running' : `${snap.services?.failed_count} failed services`}</div><div class="d">{snap.services?.running_count ?? 0} active</div></div>
+								<div><div class="t">{(snap.services?.failed_count ?? 0) === 0 ? 'All background programs OK' : `${snap.services?.failed_count} not running`}</div><div class="d">{snap.services?.running_count ?? 0} running</div></div>
 							</div>
 							<div class="clear-cell" data-ok={(snap.file_events?.webshell_suspect ?? 0) === 0}>
 								{@render tick()}
-								<div><div class="t">Real-time file watch {snap.file_events?.watching ? 'on' : 'off'}</div><div class="d">{snap.file_events?.webshell_suspect ?? 0} noteworthy events</div></div>
+								<div><div class="t">Live file monitoring {snap.file_events?.watching ? 'on' : 'off'}</div><div class="d">{snap.file_events?.webshell_suspect ?? 0} noteworthy events</div></div>
 							</div>
 						</div>
 					</section>
@@ -482,9 +482,9 @@
 						<section class="block">
 							<div class="bh"><span class="eyebrow">System health</span></div>
 							<div class="health">
-								<div class="stat"><div class="l">Disk /</div><div class="v mono">{snap.system.disk_root_pct ?? '—'}<small>%</small></div><div class="bar"><i style="width:{snap.system.disk_root_pct ?? 0}%; background:{(snap.system.disk_root_pct ?? 0) > 85 ? 'var(--crit)' : (snap.system.disk_root_pct ?? 0) > 70 ? 'var(--watch)' : 'var(--good)'}"></i></div></div>
-								<div class="stat"><div class="l">Load (1m)</div><div class="v mono">{snap.system.load1 ?? '—'}</div></div>
-								<div class="stat"><div class="l">Memory</div><div class="v mono">{snap.system.mem_used_pct ?? '—'}<small>%</small></div><div class="bar"><i style="width:{snap.system.mem_used_pct ?? 0}%"></i></div></div>
+								<div class="stat"><div class="l">Disk used</div><div class="v mono">{snap.system.disk_root_pct ?? '—'}<small>%</small></div><div class="bar"><i style="width:{snap.system.disk_root_pct ?? 0}%; background:{(snap.system.disk_root_pct ?? 0) > 85 ? 'var(--crit)' : (snap.system.disk_root_pct ?? 0) > 70 ? 'var(--watch)' : 'var(--good)'}"></i></div></div>
+								<div class="stat"><div class="l">CPU load</div><div class="v mono">{snap.system.load1 ?? '—'}</div></div>
+								<div class="stat"><div class="l">Memory used</div><div class="v mono">{snap.system.mem_used_pct ?? '—'}<small>%</small></div><div class="bar"><i style="width:{snap.system.mem_used_pct ?? 0}%"></i></div></div>
 								<div class="stat"><div class="l">Uptime</div><div class="v mono">{uptime(snap.system.uptime_s)}</div></div>
 							</div>
 						</section>

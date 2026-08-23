@@ -57,7 +57,7 @@ reach_for() { # <address> -> local|lan|internet
 classify() { # <port> <proc>
   local port="$1" proc="$2"
   # SSH is identified by process (may run on a non-standard port like 5099).
-  case "${proc}" in sshd) printf 'remote|SSH remote login'; return ;; esac
+  case "${proc}" in sshd) printf 'remote|Remote login (SSH)'; return ;; esac
   case "${port}" in
     3306) printf 'database|MySQL/MariaDB'; return ;;
     5432) printf 'database|PostgreSQL'; return ;;
@@ -91,12 +91,12 @@ risk_note_for() { # <class> <label> <reach> -> "risk|note" (risk: none|watch|hig
   if [ "${reach}" = local ] || [ "${class}" = other ]; then
     printf 'none|'; return
   fi
-  if [ "${reach}" = internet ]; then where="the internet"; risk="high"; else where="your LAN"; risk="watch"; fi
+  if [ "${reach}" = internet ]; then where="the internet"; risk="high"; else where="your home network"; risk="watch"; fi
   case "${class}" in
-    database) note="${label} reachable from ${where} — make sure it requires a password (or bind it to localhost)." ;;
+    database) note="${label} reachable from ${where} — make sure it needs a password (or limit it to this machine)." ;;
     admin) note="${label} reachable from ${where} — ensure it's password-protected." ;;
     remote) note="${label} reachable from ${where}." ; [ "${reach}" = lan ] && risk="watch" ;;
-    cleartext) note="${label} — credentials travel unencrypted; avoid exposing it." ; risk="high" ;;
+    cleartext) note="${label} — passwords are sent unprotected; avoid exposing it." ; risk="high" ;;
     *) note="Reachable from ${where}." ;;
   esac
   printf '%s|%s' "${risk}" "${note}"
